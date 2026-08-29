@@ -78,6 +78,23 @@ function initials(name) {
   return name.split(/\s+/).map((word) => word[0]).join('').slice(0, 3).toUpperCase();
 }
 
+function renderTeamMark(mark, team) {
+  mark.textContent = initials(team.name);
+  if (!team.logo) return;
+
+  try {
+    const logo = new URL(team.logo);
+    if (logo.protocol !== 'https:') return;
+    const image = document.createElement('img');
+    image.src = logo.href;
+    image.alt = '';
+    image.addEventListener('error', () => image.remove());
+    mark.append(image);
+  } catch {
+    // Keep the initials when ESPN returns an invalid logo URL.
+  }
+}
+
 function formatClock(seconds) {
   const safe = Math.max(0, seconds);
   return `${String(Math.floor(safe / 60)).padStart(2, '0')}:${String(safe % 60).padStart(2, '0')}`;
@@ -99,7 +116,7 @@ function renderStatus(data) {
       : data.status === 'paused' ? 'DRAFT PAUSED' : 'FIRST UP';
     $('current-team').textContent = current.team.name;
     $('current-pick').textContent = `Round ${current.round} · Pick ${current.roundPick} · Overall ${current.overall}`;
-    $('current-mark').textContent = initials(current.team.name);
+    renderTeamMark($('current-mark'), current.team);
     if (data.status === 'paused') {
       $('timer').textContent = data.clock.remainingSeconds === null
         ? 'PAUSED'
@@ -233,7 +250,7 @@ function renderBoard(data) {
     heading.className = 'team-heading';
     heading.classList.toggle('active', team.id === currentTeamId && data.status === 'in_progress');
     const mark = document.createElement('span');
-    mark.textContent = initials(team.name);
+    renderTeamMark(mark, team);
     const name = document.createElement('strong');
     name.textContent = team.name;
     const counts = document.createElement('small');
@@ -331,7 +348,7 @@ function applySnapshot(data) {
     .map((pick) => `${pick.overall}:${pick.team.id}:${pick.player.id}`)
     .join('|');
   const slotSignature = data.draftSlots
-    .map((slot) => `${slot.overall}:${slot.team.id}:${slot.team.name}`)
+    .map((slot) => `${slot.overall}:${slot.team.id}:${slot.team.name}:${slot.team.logo ?? ''}`)
     .join('|');
   const boardSignature = `${data.status}|${data.upcoming[0]?.overall ?? ''}|${slotSignature}|${pickSignature}`;
   if (boardSignature !== state.renderedBoard) {
