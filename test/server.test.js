@@ -34,10 +34,15 @@ test('rejects unknown files and methods', async () => {
 
 test('streams backend snapshots as server-sent events', async () => {
   let publish;
+  let publishError;
   const streamingServer = createApp({
     snapshot: async () => ({}),
     subscribe(listener) {
       publish = listener;
+      return () => {};
+    },
+    subscribeError(listener) {
+      publishError = listener;
       return () => {};
     }
   });
@@ -52,6 +57,11 @@ test('streams backend snapshots as server-sent events', async () => {
   const second = new TextDecoder().decode((await reader.read()).value);
   assert.match(first + second, /event: draft/);
   assert.match(first + second, /"picks":\[\]/);
+
+  publishError('ESPN unavailable');
+  const third = new TextDecoder().decode((await reader.read()).value);
+  assert.match(third, /event: upstream-error/);
+  assert.match(third, /ESPN unavailable/);
 
   await reader.cancel();
   await new Promise((resolve) => streamingServer.close(resolve));

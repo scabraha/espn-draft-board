@@ -97,6 +97,33 @@ test('resets the clock when a waiting draft starts', async () => {
   assert.equal(result.clock.remainingSeconds, 60);
 });
 
+test('freezes and resumes the estimated clock when a draft pauses', async () => {
+  let now = 1_000;
+  const currentLeague = structuredClone(league);
+  const service = new DraftService(
+    { pollIntervalMs: 1_000 },
+    {
+      now: () => now,
+      fetchLeague: async () => currentLeague,
+      fetchPlayers: async () => new Map()
+    }
+  );
+
+  await service.snapshot();
+  now = 21_000;
+  currentLeague.draftDetail.inProgress = false;
+  const paused = await service.snapshot();
+  assert.equal(paused.status, 'paused');
+  assert.equal(paused.clock.state, 'paused');
+  assert.equal(paused.clock.remainingSeconds, 40);
+
+  now = 51_000;
+  currentLeague.draftDetail.inProgress = true;
+  const resumed = await service.snapshot();
+  assert.equal(resumed.status, 'in_progress');
+  assert.equal(resumed.clock.remainingSeconds, 40);
+});
+
 test('treats negative defense IDs as completed picks', () => {
   const withDefense = structuredClone(league);
   withDefense.draftDetail.picks[0].playerId = -16033;

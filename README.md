@@ -9,8 +9,12 @@ The board shows:
 - the team currently on the clock
 - the next two teams in the draft order
 - completed picks grouped by round
+- draft progress, the latest selection, and roster position counts
+- draft format, size, schedule, and pick length
 - an estimated countdown for the current pick
 - a ding when the turn passes to a different team
+- fullscreen, density, text-size, and sound controls saved in the browser
+- live connection age and ESPN refresh errors
 - live updates without refreshing the page
 
 ## Quick start
@@ -100,7 +104,10 @@ authenticated session to read them.
 
 **The clock is an estimate.** ESPN's league response does not include the live
 draft-room clock. The board starts a fresh timer when it first sees the draft
-begin or a new pick appear.
+begin or a new pick appear. If that estimate expires before ESPN reports a
+selection, the board shows `DELAYED` instead of implying that ESPN's clock is
+still running. When ESPN reports that an active draft has paused, the estimate
+freezes until the draft resumes.
 
 **Browsers block sound until the page is used.** Click or press a key on the
 board once after opening it. After that, the board will ding whenever a

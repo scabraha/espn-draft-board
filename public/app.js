@@ -3,7 +3,7 @@ const state = {
   timerOffset: 0,
   renderedBoard: null,
   audioContext: null,
-  pendingTurnDing: false,
+  soundReady: false,
   connected: false,
   lastReceivedAt: null,
   upstreamError: null,
@@ -20,19 +20,25 @@ function loadPreferences() {
   try {
     Object.assign(state.preferences, JSON.parse(localStorage.getItem(PREFERENCES_KEY)) ?? {});
   } catch {
-    localStorage.removeItem(PREFERENCES_KEY);
+    // Ignore unavailable or invalid browser storage.
   }
 }
 
 function savePreferences() {
-  localStorage.setItem(PREFERENCES_KEY, JSON.stringify(state.preferences));
+  try {
+    localStorage.setItem(PREFERENCES_KEY, JSON.stringify(state.preferences));
+  } catch {
+    // The dashboard still works when browser storage is unavailable.
+  }
 }
 
 function applyPreferences() {
   document.body.classList.toggle('compact', state.preferences.compact);
   document.body.classList.toggle('large-text', state.preferences.largeText);
-  $('sound-control').textContent = state.preferences.sound ? 'Sound on' : 'Sound off';
-  $('sound-control').setAttribute('aria-pressed', String(state.preferences.sound));
+  $('sound-control').textContent = state.soundReady
+    ? 'Sound on'
+    : state.preferences.sound ? 'Enable sound' : 'Sound off';
+  $('sound-control').setAttribute('aria-pressed', String(state.soundReady));
   $('density-control').textContent = state.preferences.compact ? 'Comfortable' : 'Compact';
   $('text-control').textContent = state.preferences.largeText ? 'Smaller text' : 'Larger text';
 }
@@ -56,27 +62,16 @@ function soundTurnDing(context) {
 }
 
 function dingForNewTurn() {
-  if (!state.preferences.sound) return;
-  if (state.audioContext?.state === 'running') {
-    soundTurnDing(state.audioContext);
-  } else {
-    state.pendingTurnDing = true;
-  }
+  if (state.preferences.sound && state.soundReady) soundTurnDing(state.audioContext);
 }
 
-function unlockAudio() {
-  if (!state.preferences.sound) return;
+async function enableAudio() {
   const AudioContext = window.AudioContext ?? window.webkitAudioContext;
-  if (!AudioContext) return;
+  if (!AudioContext) return false;
   state.audioContext ??= new AudioContext();
-  void state.audioContext.resume().then(() => {
-    if (state.pendingTurnDing) {
-      soundTurnDing(state.audioContext);
-      state.pendingTurnDing = false;
-    }
-    window.removeEventListener('pointerdown', unlockAudio);
-    window.removeEventListener('keydown', unlockAudio);
-  });
+  await state.audioContext.resume();
+  state.soundReady = state.audioContext.state === 'running';
+  return state.soundReady;
 }
 
 function initials(name) {
@@ -90,6 +85,7 @@ function formatClock(seconds) {
 
 function renderStatus(data) {
   $('league-name').textContent = `${data.league.name} · ${data.league.season}`;
+  $('timer').classList.remove('urgent');
   const current = data.upcoming[0];
   if (data.status === 'complete') {
     $('clock-label').textContent = 'DRAFT COMPLETE';
@@ -98,10 +94,17 @@ function renderStatus(data) {
     $('current-mark').textContent = '✓';
     $('timer').textContent = 'FINAL';
   } else if (current) {
-    $('clock-label').textContent = data.status === 'in_progress' ? 'ON THE CLOCK' : 'FIRST UP';
+    $('clock-label').textContent = data.status === 'in_progress'
+      ? 'ON THE CLOCK'
+      : data.status === 'paused' ? 'DRAFT PAUSED' : 'FIRST UP';
     $('current-team').textContent = current.team.name;
     $('current-pick').textContent = `Round ${current.round} · Pick ${current.roundPick} · Overall ${current.overall}`;
     $('current-mark').textContent = initials(current.team.name);
+    if (data.status === 'paused') {
+      $('timer').textContent = data.clock.remainingSeconds === null
+        ? 'PAUSED'
+        : formatClock(data.clock.remainingSeconds);
+    }
   } else {
     $('clock-label').textContent = 'WAITING';
     $('current-team').textContent = 'Draft order pending';
@@ -129,7 +132,8 @@ function renderStatus(data) {
 
 function formatDraftTime(value) {
   if (!value) return 'Start time unavailable';
-  const date = new Date(Number(value));
+  const numeric = Number(value);
+  const date = new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric);
   if (Number.isNaN(date.getTime())) return 'Start time unavailable';
   return `Scheduled ${date.toLocaleString()}`;
 }
@@ -144,7 +148,10 @@ function renderSummary(data) {
     : 'Waiting for draft order';
   $('progress-bar').style.width = `${percentage}%`;
 
-  const latest = data.picks.at(-1);
+  const latest = data.picks.reduce(
+    (last, pick) => !last || pick.overall > last.overall ? pick : last,
+    null
+  );
   $('last-pick').textContent = latest ? latest.player.name : 'No selections yet';
   $('last-pick-meta').textContent = latest
     ? `${latest.player.position} · ${latest.player.proTeam} · ${latest.team.name}`
@@ -202,7 +209,11 @@ function renderBoard(data) {
   ]));
   const currentOverall = data.upcoming[0]?.overall;
   const currentTeamId = data.upcoming[0]?.team.id;
-  const latestOverall = data.picks.at(-1)?.overall;
+  const latestOverall = data.picks.reduce(
+    (overall, pick) => Math.max(overall, pick.overall),
+    0
+  );
+  const positions = ['QB', 'RB', 'WR', 'TE', 'K', 'D/ST'];
   const positionCounts = new Map(teams.map((team) => [team.id, new Map()]));
   for (const pick of data.picks) {
     const counts = positionCounts.get(pick.team.id);
@@ -227,8 +238,14 @@ function renderBoard(data) {
     name.textContent = team.name;
     const counts = document.createElement('small');
     counts.className = 'team-counts';
-    counts.textContent = [...(positionCounts.get(team.id) ?? [])]
-      .map(([position, count]) => `${position} ${count}`)
+    const teamCounts = positionCounts.get(team.id) ?? new Map();
+    const orderedPositions = [
+      ...positions,
+      ...[...teamCounts.keys()].filter((position) => !positions.includes(position)).sort()
+    ];
+    counts.textContent = orderedPositions
+      .filter((position) => teamCounts.has(position))
+      .map((position) => `${position} ${teamCounts.get(position)}`)
       .join(' · ') || 'No picks';
     heading.append(mark, name, counts);
     grid.append(heading);
@@ -313,7 +330,10 @@ function applySnapshot(data) {
   const pickSignature = data.picks
     .map((pick) => `${pick.overall}:${pick.team.id}:${pick.player.id}`)
     .join('|');
-  const boardSignature = `${data.draftSlots.length}|${data.upcoming[0]?.overall ?? ''}|${pickSignature}`;
+  const slotSignature = data.draftSlots
+    .map((slot) => `${slot.overall}:${slot.team.id}:${slot.team.name}`)
+    .join('|');
+  const boardSignature = `${data.status}|${data.upcoming[0]?.overall ?? ''}|${slotSignature}|${pickSignature}`;
   if (boardSignature !== state.renderedBoard) {
     renderBoard(data);
     state.renderedBoard = boardSignature;
@@ -345,10 +365,20 @@ function renderConnection() {
 }
 
 async function toggleSound() {
-  state.preferences.sound = !state.preferences.sound;
+  if (state.soundReady) {
+    state.preferences.sound = false;
+    state.soundReady = false;
+    await state.audioContext.suspend();
+  } else {
+    state.preferences.sound = true;
+    try {
+      await enableAudio();
+    } catch {
+      state.preferences.sound = false;
+    }
+  }
   savePreferences();
   applyPreferences();
-  if (state.preferences.sound) await unlockAudio();
 }
 
 function togglePreference(name) {
@@ -390,7 +420,5 @@ updates.addEventListener('upstream-error', (event) => {
   $('error').hidden = false;
   renderConnection();
 });
-window.addEventListener('pointerdown', unlockAudio);
-window.addEventListener('keydown', unlockAudio);
 setInterval(tick, 250);
 setInterval(renderConnection, 1000);
