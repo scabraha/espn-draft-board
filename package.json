@@ -1,0 +1,26 @@
+{
+  "name": "espn-draft-board",
+  "version": "1.0.0",
+  "description": "A public-view live draft board for ESPN Fantasy Football",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test",
+    "check": "node --check src/server.js && node --check src/espn.js && node --check public/app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://localhost:26831/scabraha/espn-draft-board"
+  },
+  "keywords": [
+    "espn",
+    "fantasy-football",
+    "draft-board"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  }
+}
