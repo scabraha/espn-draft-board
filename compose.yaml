@@ -1,0 +1,11 @@
+services:
+  draft-board:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      ESPN_LEAGUE_ID: "${ESPN_LEAGUE_ID}"
+      ESPN_SEASON: "${ESPN_SEASON:-2026}"
+      ESPN_SWID: "${ESPN_SWID:-}"
+      ESPN_S2: "${ESPN_S2:-}"
+    restart: unless-stopped

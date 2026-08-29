@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Live Draft Board</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <div>
+        <p class="eyebrow">LIVE DRAFT</p>
+        <h1 id="league-name">ESPN Fantasy Football</h1>
+      </div>
+      <div class="connection"><span id="connection-dot"></span><span id="connection-label">Connecting</span></div>
+    </header>
+
+    <main>
+      <section class="spotlight" aria-label="Draft status">
+        <article class="on-clock">
+          <p class="label" id="clock-label">ON THE CLOCK</p>
+          <div class="team-mark" id="current-mark">—</div>
+          <div>
+            <h2 id="current-team">Waiting for ESPN</h2>
+            <p id="current-pick">Draft details will appear here</p>
+          </div>
+          <div class="timer" id="timer">--:--</div>
+        </article>
+        <article class="next-up">
+          <p class="label">UP NEXT</p>
+          <div id="up-next"></div>
+        </article>
+      </section>
+
+      <section>
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">THE BOARD</p>
+            <h2>Draft picks</h2>
+          </div>
+          <p id="last-updated"></p>
+        </div>
+        <div class="board-wrap">
+          <div class="board" id="board" aria-live="polite"></div>
+        </div>
+      </section>
+    </main>
+
+    <div class="error" id="error" role="alert" hidden></div>
+  </body>
+</html>
