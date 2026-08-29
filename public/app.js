@@ -359,7 +359,7 @@ function renderConnection() {
     label.textContent = `Stale · ${age}s`;
     dot.className = 'offline';
   } else {
-    label.textContent = age ? `Live · ${age}s ago` : 'Live';
+    label.textContent = 'Live';
     dot.className = 'live';
   }
 }
