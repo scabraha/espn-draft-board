@@ -18,6 +18,12 @@ const NFL_TEAMS = {
   34: 'HOU'
 };
 
+function isSelectedPick(pick) {
+  return pick.playerId !== null
+    && pick.playerId !== undefined
+    && Number(pick.playerId) !== -1;
+}
+
 function cookieHeader(config) {
   const cookies = [];
   if (config.swid) cookies.push(`SWID=${config.swid}`);
@@ -124,7 +130,7 @@ export function normalizeLeague(data, players, clock, now = Date.now()) {
     slots = generatedSlots(settings, teams.length);
   }
 
-  const picks = slots.filter((pick) => Number(pick.playerId) > 0).map((pick) => ({
+  const picks = slots.filter(isSelectedPick).map((pick) => ({
     overall: Number(pick.overallPickNumber),
     round: Number(pick.roundId),
     roundPick: Number(pick.roundPickNumber),
@@ -142,7 +148,7 @@ export function normalizeLeague(data, players, clock, now = Date.now()) {
   }));
 
   const upcoming = slots
-    .filter((pick) => Number(pick.playerId) <= 0)
+    .filter((pick) => !isSelectedPick(pick))
     .slice(0, 3)
     .map((pick) => ({
       overall: Number(pick.overallPickNumber),
@@ -194,7 +200,9 @@ export class DraftService {
     this.cacheTime = 0;
     this.pending = null;
     this.completedPicks = null;
+    this.inProgress = false;
     this.clock = { startedAt: this.now() };
+    this.players = new Map();
   }
 
   async snapshot() {
@@ -208,14 +216,22 @@ export class DraftService {
   async refresh(now) {
     const league = await this.fetchLeague(this.config);
     const rawPicks = league.draftDetail?.picks ?? [];
-    const completed = rawPicks.filter((pick) => Number(pick.playerId) > 0);
-    if (this.completedPicks === null || completed.length !== this.completedPicks) {
+    const completed = rawPicks.filter(isSelectedPick);
+    const inProgress = Boolean(league.draftDetail?.inProgress);
+    if (
+      this.completedPicks === null
+      || completed.length !== this.completedPicks
+      || (inProgress && !this.inProgress)
+    ) {
       this.clock.startedAt = now;
       this.completedPicks = completed.length;
     }
-    const ids = [...new Set(completed.map((pick) => Number(pick.playerId)).filter((id) => id > 0))];
-    const players = await this.fetchPlayers(this.config, ids);
-    this.cached = normalizeLeague(league, players, this.clock, now);
+    this.inProgress = inProgress;
+    const ids = [...new Set(completed.map((pick) => Number(pick.playerId)))];
+    const missingIds = ids.filter((id) => !this.players.has(id));
+    const fetchedPlayers = await this.fetchPlayers(this.config, missingIds);
+    for (const [id, player] of fetchedPlayers) this.players.set(id, player);
+    this.cached = normalizeLeague(league, this.players, this.clock, now);
     this.cacheTime = now;
     return this.cached;
   }

@@ -45,13 +45,17 @@ test('normalizes completed and upcoming picks without exposing ESPN data', () =>
 test('draft service caches upstream requests and resets the clock on a pick', async () => {
   let now = 1_000;
   let calls = 0;
+  const playerRequests = [];
   const currentLeague = structuredClone(league);
   const service = new DraftService(
     { pollIntervalMs: 2_000 },
     {
       now: () => now,
       fetchLeague: async () => { calls += 1; return currentLeague; },
-      fetchPlayers: async () => new Map()
+      fetchPlayers: async (_config, ids) => {
+        playerRequests.push(ids);
+        return new Map(ids.map((id) => [id, { id, name: `Player ${id}` }]));
+      }
     }
   );
 
@@ -65,6 +69,42 @@ test('draft service caches upstream requests and resets the clock on a pick', as
   const result = await service.snapshot();
   assert.equal(calls, 2);
   assert.equal(result.clock.expiresAt, 64_000);
+  assert.deepEqual(playerRequests, [[100], [101]]);
+});
+
+test('resets the clock when a waiting draft starts', async () => {
+  let now = 1_000;
+  const currentLeague = structuredClone(league);
+  currentLeague.draftDetail.inProgress = false;
+  currentLeague.draftDetail.picks[0].playerId = -1;
+  const service = new DraftService(
+    { pollIntervalMs: 1_000 },
+    {
+      now: () => now,
+      fetchLeague: async () => currentLeague,
+      fetchPlayers: async () => new Map()
+    }
+  );
+
+  await service.snapshot();
+  currentLeague.draftDetail.inProgress = true;
+  now = 121_000;
+  const result = await service.snapshot();
+  assert.equal(result.clock.remainingSeconds, 60);
+});
+
+test('treats negative defense IDs as completed picks', () => {
+  const withDefense = structuredClone(league);
+  withDefense.draftDetail.picks[0].playerId = -16033;
+  const result = normalizeLeague(
+    withDefense,
+    new Map([[-16033, { id: -16033, name: 'Baltimore D/ST', position: 'D/ST', proTeam: 'BAL' }]]),
+    { startedAt: 0 },
+    0
+  );
+
+  assert.equal(result.picks[0].player.name, 'Baltimore D/ST');
+  assert.equal(result.upcoming[0].overall, 2);
 });
 
 test('generates snake slots when ESPN only returns settings', () => {

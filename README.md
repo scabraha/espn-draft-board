@@ -2,6 +2,8 @@
 
 A read-only, spectator-friendly fantasy football draft board. It displays completed picks, the team on the clock, the next two teams, and a live countdown without exposing personal rankings or draft strategy.
 
+The Node.js backend is the only component that contacts ESPN. Browsers call the backend's sanitized `/api/draft` endpoint, so ESPN cookies and raw league data never reach public viewers.
+
 > ESPN does not offer a supported public Fantasy API or API keys. This app uses ESPN's private web API with your existing ESPN session cookies. ESPN may change that API without notice.
 
 ## Run with Docker

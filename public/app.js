@@ -1,4 +1,4 @@
-const state = { snapshot: null, timerOffset: 0 };
+const state = { snapshot: null, timerOffset: 0, renderedPicks: '' };
 const $ = (id) => document.getElementById(id);
 
 function initials(name) {
@@ -76,7 +76,12 @@ function renderBoard(data) {
     return;
   }
 
-  const rounds = Map.groupBy(data.picks, (pick) => pick.round);
+  const rounds = data.picks.reduce((grouped, pick) => {
+    const round = grouped.get(pick.round) ?? [];
+    round.push(pick);
+    grouped.set(pick.round, round);
+    return grouped;
+  }, new Map());
   for (const [round, picks] of rounds) {
     const column = document.createElement('section');
     column.className = 'round';
@@ -91,7 +96,8 @@ function renderBoard(data) {
 function tick() {
   const clock = state.snapshot?.clock;
   if (!clock?.expiresAt || state.snapshot.status !== 'in_progress') return;
-  const remaining = Math.max(0, Math.ceil((new Date(clock.expiresAt).getTime() - Date.now() + state.timerOffset) / 1000));
+  const serverNow = Date.now() + state.timerOffset;
+  const remaining = Math.max(0, Math.ceil((new Date(clock.expiresAt).getTime() - serverNow) / 1000));
   $('timer').textContent = formatClock(remaining);
   $('timer').classList.toggle('urgent', remaining <= 10);
 }
@@ -104,7 +110,13 @@ async function refresh() {
     state.snapshot = data;
     state.timerOffset = new Date(data.updatedAt).getTime() - Date.now();
     renderStatus(data);
-    renderBoard(data);
+    const pickSignature = data.picks
+      .map((pick) => `${pick.overall}:${pick.team.id}:${pick.player.id}`)
+      .join('|');
+    if (pickSignature !== state.renderedPicks) {
+      renderBoard(data);
+      state.renderedPicks = pickSignature;
+    }
     tick();
     $('last-updated').textContent = `Updated ${new Date(data.updatedAt).toLocaleTimeString()}`;
     $('connection-label').textContent = 'Live';
