@@ -185,7 +185,9 @@ export function normalizeLeague(data, players, clock, now = Date.now()) {
       name: data.settings?.name ?? 'ESPN Fantasy Football',
       season: Number(data.seasonId),
       draftAt: settings.date ?? null,
-      type: settings.type ?? 'SNAKE'
+      type: settings.type ?? 'SNAKE',
+      rounds: Number(settings.rounds) || Math.max(0, ...slots.map((slot) => Number(slot.roundId))),
+      teamCount: teams.length
     },
     status: complete ? 'complete' : inProgress ? 'in_progress' : 'waiting',
     picks,
@@ -216,6 +218,7 @@ export class DraftService {
     this.clock = { startedAt: this.now() };
     this.players = new Map();
     this.listeners = new Set();
+    this.errorListeners = new Set();
     this.pollTimer = null;
   }
 
@@ -236,12 +239,18 @@ export class DraftService {
     return () => this.listeners.delete(listener);
   }
 
+  subscribeError(listener) {
+    this.errorListeners.add(listener);
+    return () => this.errorListeners.delete(listener);
+  }
+
   async poll() {
     try {
       const snapshot = await this.snapshot();
       for (const listener of this.listeners) listener(snapshot);
     } catch (error) {
       console.error(`Draft refresh failed: ${error.message}`);
+      for (const listener of this.errorListeners) listener(error.message);
     }
   }
 

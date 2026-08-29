@@ -13,7 +13,15 @@
         <p class="eyebrow">LIVE DRAFT</p>
         <h1 id="league-name">ESPN Fantasy Football</h1>
       </div>
-      <div class="connection"><span id="connection-dot"></span><span id="connection-label">Connecting</span></div>
+      <div class="header-actions">
+        <button class="control" id="sound-control" type="button" aria-pressed="false">Sound off</button>
+        <button class="control" id="density-control" type="button">Compact</button>
+        <button class="control" id="text-control" type="button">Larger text</button>
+        <button class="control" id="fullscreen-control" type="button">Fullscreen</button>
+        <div class="connection" title="Live update status">
+          <span id="connection-dot"></span><span id="connection-label">Connecting</span>
+        </div>
+      </div>
     </header>
 
     <main>
@@ -33,13 +41,31 @@
         </article>
       </section>
 
+      <section class="draft-summary" aria-label="Draft summary">
+        <div>
+          <p class="label">PROGRESS</p>
+          <strong id="progress-label">Waiting for draft order</strong>
+          <div class="progress-track" aria-hidden="true"><span id="progress-bar"></span></div>
+        </div>
+        <div>
+          <p class="label">LAST PICK</p>
+          <strong id="last-pick">No selections yet</strong>
+          <small id="last-pick-meta"></small>
+        </div>
+        <div>
+          <p class="label">DRAFT INFO</p>
+          <strong id="draft-info">Loading settings</strong>
+          <small id="draft-time"></small>
+        </div>
+      </section>
+
       <section>
         <div class="section-heading">
           <div>
             <p class="eyebrow">THE BOARD</p>
             <h2>Draft picks</h2>
           </div>
-          <p id="last-updated"></p>
+          <p id="last-updated" aria-live="polite"></p>
         </div>
         <div class="board-wrap">
           <div class="board" id="board" aria-live="polite"></div>

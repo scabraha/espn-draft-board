@@ -110,10 +110,14 @@ export function createApp(service) {
       });
       response.write('retry: 2000\n\n');
       const unsubscribe = service.subscribe((snapshot) => sendEvent(response, 'draft', snapshot));
+      const unsubscribeError = typeof service.subscribeError === 'function'
+        ? service.subscribeError((message) => sendEvent(response, 'upstream-error', { message }))
+        : () => {};
       const heartbeat = setInterval(() => response.write(': heartbeat\n\n'), 15000);
       request.on('close', () => {
         clearInterval(heartbeat);
         unsubscribe();
+        unsubscribeError();
       });
       return;
     }

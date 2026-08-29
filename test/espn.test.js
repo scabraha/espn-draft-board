@@ -41,6 +41,8 @@ test('normalizes completed and upcoming picks without exposing ESPN data', () =>
   assert.equal(result.draftSlots[3].team.name, 'Alpha Team');
   assert.equal(result.clock.remainingSeconds, 55);
   assert.equal(result.status, 'in_progress');
+  assert.equal(result.league.rounds, 2);
+  assert.equal(result.league.teamCount, 2);
   assert.equal('settings' in result, false);
 });
 
@@ -146,4 +148,16 @@ test('backend polling publishes refreshed snapshots', async () => {
 
   assert.equal(refreshes, 1);
   assert.equal(published.league.name, 'Test League');
+});
+
+test('backend polling publishes ESPN refresh errors', async () => {
+  const service = new DraftService(
+    { pollIntervalMs: 10_000 },
+    { fetchLeague: async () => { throw new Error('ESPN unavailable'); } }
+  );
+  const failure = new Promise((resolve) => service.subscribeError(resolve));
+
+  service.start();
+  assert.equal(await failure, 'ESPN unavailable');
+  service.stop();
 });

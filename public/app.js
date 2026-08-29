@@ -1,11 +1,41 @@
 const state = {
   snapshot: null,
   timerOffset: 0,
-  renderedPicks: '',
+  renderedBoard: null,
   audioContext: null,
-  pendingTurnDing: false
+  pendingTurnDing: false,
+  connected: false,
+  lastReceivedAt: null,
+  upstreamError: null,
+  preferences: {
+    sound: false,
+    compact: false,
+    largeText: false
+  }
 };
 const $ = (id) => document.getElementById(id);
+const PREFERENCES_KEY = 'draft-board-preferences';
+
+function loadPreferences() {
+  try {
+    Object.assign(state.preferences, JSON.parse(localStorage.getItem(PREFERENCES_KEY)) ?? {});
+  } catch {
+    localStorage.removeItem(PREFERENCES_KEY);
+  }
+}
+
+function savePreferences() {
+  localStorage.setItem(PREFERENCES_KEY, JSON.stringify(state.preferences));
+}
+
+function applyPreferences() {
+  document.body.classList.toggle('compact', state.preferences.compact);
+  document.body.classList.toggle('large-text', state.preferences.largeText);
+  $('sound-control').textContent = state.preferences.sound ? 'Sound on' : 'Sound off';
+  $('sound-control').setAttribute('aria-pressed', String(state.preferences.sound));
+  $('density-control').textContent = state.preferences.compact ? 'Comfortable' : 'Compact';
+  $('text-control').textContent = state.preferences.largeText ? 'Smaller text' : 'Larger text';
+}
 
 function soundTurnDing(context) {
   const startedAt = context.currentTime;
@@ -26,6 +56,7 @@ function soundTurnDing(context) {
 }
 
 function dingForNewTurn() {
+  if (!state.preferences.sound) return;
   if (state.audioContext?.state === 'running') {
     soundTurnDing(state.audioContext);
   } else {
@@ -34,6 +65,7 @@ function dingForNewTurn() {
 }
 
 function unlockAudio() {
+  if (!state.preferences.sound) return;
   const AudioContext = window.AudioContext ?? window.webkitAudioContext;
   if (!AudioContext) return;
   state.audioContext ??= new AudioContext();
@@ -95,6 +127,40 @@ function renderStatus(data) {
   }));
 }
 
+function formatDraftTime(value) {
+  if (!value) return 'Start time unavailable';
+  const date = new Date(Number(value));
+  if (Number.isNaN(date.getTime())) return 'Start time unavailable';
+  return `Scheduled ${date.toLocaleString()}`;
+}
+
+function renderSummary(data) {
+  const total = data.draftSlots.length;
+  const completed = data.picks.length;
+  const percentage = total ? Math.round(completed / total * 100) : 0;
+  const currentRound = data.upcoming[0]?.round ?? data.picks.at(-1)?.round;
+  $('progress-label').textContent = total
+    ? `${completed} of ${total} picks${currentRound ? ` · Round ${currentRound}` : ''}`
+    : 'Waiting for draft order';
+  $('progress-bar').style.width = `${percentage}%`;
+
+  const latest = data.picks.at(-1);
+  $('last-pick').textContent = latest ? latest.player.name : 'No selections yet';
+  $('last-pick-meta').textContent = latest
+    ? `${latest.player.position} · ${latest.player.proTeam} · ${latest.team.name}`
+    : '';
+
+  const league = data.league;
+  const format = league.type === 'SNAKE' ? 'Snake' : league.type;
+  $('draft-info').textContent = [
+    format,
+    league.teamCount ? `${league.teamCount} teams` : null,
+    league.rounds ? `${league.rounds} rounds` : null,
+    data.clock.secondsPerPick ? `${data.clock.secondsPerPick}s picks` : null
+  ].filter(Boolean).join(' · ');
+  $('draft-time').textContent = data.status === 'waiting' ? formatDraftTime(league.draftAt) : '';
+}
+
 function playerDetails(pick) {
   const details = document.createElement('div');
   details.className = 'player-details';
@@ -136,6 +202,12 @@ function renderBoard(data) {
   ]));
   const currentOverall = data.upcoming[0]?.overall;
   const currentTeamId = data.upcoming[0]?.team.id;
+  const latestOverall = data.picks.at(-1)?.overall;
+  const positionCounts = new Map(teams.map((team) => [team.id, new Map()]));
+  for (const pick of data.picks) {
+    const counts = positionCounts.get(pick.team.id);
+    if (counts) counts.set(pick.player.position, (counts.get(pick.player.position) ?? 0) + 1);
+  }
   const grid = document.createElement('div');
   grid.className = 'draft-grid';
   grid.style.setProperty('--team-count', teams.length);
@@ -153,7 +225,12 @@ function renderBoard(data) {
     mark.textContent = initials(team.name);
     const name = document.createElement('strong');
     name.textContent = team.name;
-    heading.append(mark, name);
+    const counts = document.createElement('small');
+    counts.className = 'team-counts';
+    counts.textContent = [...(positionCounts.get(team.id) ?? [])]
+      .map(([position, count]) => `${position} ${count}`)
+      .join(' · ') || 'No picks';
+    heading.append(mark, name, counts);
     grid.append(heading);
   }
 
@@ -181,6 +258,7 @@ function renderBoard(data) {
 
       if (pick) {
         cell.classList.add('selected');
+        cell.classList.toggle('latest', pick.overall === latestOverall);
         cell.dataset.position = pick.player.position;
         cell.append(playerDetails(pick));
       } else if (slot.overall === currentOverall && data.status === 'in_progress') {
@@ -197,7 +275,8 @@ function renderBoard(data) {
   const currentCell = board.querySelector('.on-clock-cell');
   if (currentCell) {
     const left = currentCell.offsetLeft - board.clientWidth / 2 + currentCell.clientWidth / 2;
-    board.scrollTo({ left: Math.max(0, left), behavior: 'smooth' });
+    const top = currentCell.offsetTop - board.clientHeight / 2 + currentCell.clientHeight / 2;
+    board.scrollTo({ left: Math.max(0, left), top: Math.max(0, top), behavior: 'smooth' });
   }
 }
 
@@ -206,8 +285,10 @@ function tick() {
   if (!clock?.expiresAt || state.snapshot.status !== 'in_progress') return;
   const serverNow = Date.now() + state.timerOffset;
   const remaining = Math.max(0, Math.ceil((new Date(clock.expiresAt).getTime() - serverNow) / 1000));
-  $('timer').textContent = formatClock(remaining);
+  const delayed = remaining === 0;
+  $('timer').textContent = delayed ? 'DELAYED' : formatClock(remaining);
   $('timer').classList.toggle('urgent', remaining <= 10);
+  if (delayed) $('current-pick').textContent = 'Pick timer elapsed · awaiting ESPN update';
 }
 
 function applySnapshot(data) {
@@ -224,21 +305,71 @@ function applySnapshot(data) {
   }
 
   state.snapshot = data;
+  state.lastReceivedAt = Date.now();
+  state.upstreamError = null;
   state.timerOffset = new Date(data.updatedAt).getTime() - Date.now();
   renderStatus(data);
+  renderSummary(data);
   const pickSignature = data.picks
     .map((pick) => `${pick.overall}:${pick.team.id}:${pick.player.id}`)
     .join('|');
-  if (pickSignature !== state.renderedPicks) {
+  const boardSignature = `${data.draftSlots.length}|${data.upcoming[0]?.overall ?? ''}|${pickSignature}`;
+  if (boardSignature !== state.renderedBoard) {
     renderBoard(data);
-    state.renderedPicks = pickSignature;
+    state.renderedBoard = boardSignature;
   }
   tick();
   $('last-updated').textContent = `Updated ${new Date(data.updatedAt).toLocaleTimeString()}`;
-  $('connection-label').textContent = 'Live';
-  $('connection-dot').className = 'live';
+  state.connected = true;
+  renderConnection();
   $('error').hidden = true;
 }
+
+function renderConnection() {
+  const age = state.lastReceivedAt ? Math.floor((Date.now() - state.lastReceivedAt) / 1000) : null;
+  const label = $('connection-label');
+  const dot = $('connection-dot');
+  if (state.upstreamError) {
+    label.textContent = `ESPN error · ${age ?? 0}s ago`;
+    dot.className = 'offline';
+  } else if (!state.connected) {
+    label.textContent = age === null ? 'Connecting' : `Reconnecting · ${age}s stale`;
+    dot.className = 'offline';
+  } else if (age !== null && age >= 10) {
+    label.textContent = `Stale · ${age}s`;
+    dot.className = 'offline';
+  } else {
+    label.textContent = age ? `Live · ${age}s ago` : 'Live';
+    dot.className = 'live';
+  }
+}
+
+async function toggleSound() {
+  state.preferences.sound = !state.preferences.sound;
+  savePreferences();
+  applyPreferences();
+  if (state.preferences.sound) await unlockAudio();
+}
+
+function togglePreference(name) {
+  state.preferences[name] = !state.preferences[name];
+  savePreferences();
+  applyPreferences();
+  if (state.snapshot) renderBoard(state.snapshot);
+}
+
+loadPreferences();
+applyPreferences();
+$('sound-control').addEventListener('click', () => void toggleSound());
+$('density-control').addEventListener('click', () => togglePreference('compact'));
+$('text-control').addEventListener('click', () => togglePreference('largeText'));
+$('fullscreen-control').addEventListener('click', () => {
+  if (document.fullscreenElement) void document.exitFullscreen();
+  else void document.documentElement.requestFullscreen();
+});
+document.addEventListener('fullscreenchange', () => {
+  $('fullscreen-control').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
+});
 
 const updates = new EventSource('/api/events');
 updates.addEventListener('draft', (event) => {
@@ -250,9 +381,16 @@ updates.addEventListener('draft', (event) => {
   }
 });
 updates.onerror = () => {
-  $('connection-label').textContent = 'Reconnecting';
-  $('connection-dot').className = 'offline';
+  state.connected = false;
+  renderConnection();
 };
+updates.addEventListener('upstream-error', (event) => {
+  state.upstreamError = JSON.parse(event.data).message;
+  $('error').textContent = `ESPN refresh failed: ${state.upstreamError}`;
+  $('error').hidden = false;
+  renderConnection();
+});
 window.addEventListener('pointerdown', unlockAudio);
 window.addEventListener('keydown', unlockAudio);
 setInterval(tick, 250);
+setInterval(renderConnection, 1000);
