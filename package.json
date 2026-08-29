@@ -11,7 +11,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "http://localhost:26831/scabraha/espn-draft-board"
+    "url": "git+https://github.com/scabraha/espn-draft-board.git"
+  },
+  "homepage": "https://github.com/scabraha/espn-draft-board#readme",
+  "bugs": {
+    "url": "https://github.com/scabraha/espn-draft-board/issues"
   },
   "keywords": [
     "espn",

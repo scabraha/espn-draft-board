@@ -1,5 +1,51 @@
-const state = { snapshot: null, timerOffset: 0, renderedPicks: '' };
+const state = {
+  snapshot: null,
+  timerOffset: 0,
+  renderedPicks: '',
+  audioContext: null,
+  pendingTurnDing: false
+};
 const $ = (id) => document.getElementById(id);
+
+function soundTurnDing(context) {
+  const startedAt = context.currentTime;
+  const gain = context.createGain();
+  gain.gain.setValueAtTime(0.0001, startedAt);
+  gain.gain.exponentialRampToValueAtTime(0.2, startedAt + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startedAt + 0.55);
+  gain.connect(context.destination);
+
+  for (const [frequency, delay] of [[880, 0], [1320, 0.12]]) {
+    const oscillator = context.createOscillator();
+    oscillator.type = 'sine';
+    oscillator.frequency.value = frequency;
+    oscillator.connect(gain);
+    oscillator.start(startedAt + delay);
+    oscillator.stop(startedAt + delay + 0.35);
+  }
+}
+
+function dingForNewTurn() {
+  if (state.audioContext?.state === 'running') {
+    soundTurnDing(state.audioContext);
+  } else {
+    state.pendingTurnDing = true;
+  }
+}
+
+function unlockAudio() {
+  const AudioContext = window.AudioContext ?? window.webkitAudioContext;
+  if (!AudioContext) return;
+  state.audioContext ??= new AudioContext();
+  void state.audioContext.resume().then(() => {
+    if (state.pendingTurnDing) {
+      soundTurnDing(state.audioContext);
+      state.pendingTurnDing = false;
+    }
+    window.removeEventListener('pointerdown', unlockAudio);
+    window.removeEventListener('keydown', unlockAudio);
+  });
+}
 
 function initials(name) {
   return name.split(/\s+/).map((word) => word[0]).join('').slice(0, 3).toUpperCase();
@@ -103,6 +149,18 @@ function tick() {
 }
 
 function applySnapshot(data) {
+  const previous = state.snapshot;
+  const current = data.upcoming[0];
+  const previousTeamId = previous?.upcoming[0]?.team.id;
+  if (
+    previous
+    && current
+    && data.status === 'in_progress'
+    && (previous.status !== 'in_progress' || current.team.id !== previousTeamId)
+  ) {
+    dingForNewTurn();
+  }
+
   state.snapshot = data;
   state.timerOffset = new Date(data.updatedAt).getTime() - Date.now();
   renderStatus(data);
@@ -133,4 +191,6 @@ updates.onerror = () => {
   $('connection-label').textContent = 'Reconnecting';
   $('connection-dot').className = 'offline';
 };
+window.addEventListener('pointerdown', unlockAudio);
+window.addEventListener('keydown', unlockAudio);
 setInterval(tick, 250);
