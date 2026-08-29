@@ -5,7 +5,9 @@ services:
       - "${PORT:-3000}:${PORT:-3000}"
     environment:
       PORT: "${PORT:-3000}"
-      ESPN_LEAGUE_ID: "${ESPN_LEAGUE_ID}"
+      DEMO_MODE: "${DEMO_MODE:-false}"
+      DEMO_PICK_SECONDS: "${DEMO_PICK_SECONDS:-5}"
+      ESPN_LEAGUE_ID: "${ESPN_LEAGUE_ID:-}"
       ESPN_SEASON: "${ESPN_SEASON:-2026}"
       ESPN_SWID: "${ESPN_SWID:-}"
       ESPN_S2: "${ESPN_S2:-}"

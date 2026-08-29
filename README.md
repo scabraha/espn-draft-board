@@ -37,6 +37,19 @@ The easiest way to run the board is with Docker Compose.
 The board checks ESPN every two seconds and sends updates to connected browsers
 as soon as it sees a change.
 
+## Try it without an ESPN league
+
+Demo mode runs a short, fictional snake draft and starts a new pick every five
+seconds. It loops automatically, making it easy to test the board, timer, and
+turn sound:
+
+```sh
+DEMO_MODE=true docker compose up --build
+```
+
+Open <http://localhost:3000>, then click or press a key once to allow browser
+audio. No ESPN league ID or cookies are needed.
+
 ## ESPN setup
 
 ### Find your league ID
@@ -73,6 +86,8 @@ authenticated session to read them.
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
+| `DEMO_MODE` | No | `false` | Use the built-in fictional draft instead of ESPN |
+| `DEMO_PICK_SECONDS` | No | `5` | Seconds between picks in demo mode |
 | `ESPN_LEAGUE_ID` | Yes | — | Numeric ESPN league ID |
 | `ESPN_SEASON` | No | Current year | Fantasy season |
 | `ESPN_SWID` | Private leagues | — | ESPN `SWID` session cookie |

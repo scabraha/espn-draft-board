@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DemoDraftService } from './demo.js';
 import { DraftService } from './espn.js';
 
 const ROOT = fileURLToPath(new URL('../public/', import.meta.url));
@@ -21,18 +22,29 @@ function cleanCookie(value = '') {
   return value.trim().replace(/^["']|["']$/g, '');
 }
 
+function booleanEnv(name, fallback) {
+  const value = process.env[name]?.trim().toLowerCase();
+  if (value === undefined || value === '') return fallback;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new Error(`${name} must be either true or false.`);
+}
+
 export function loadConfig() {
+  const demoMode = booleanEnv('DEMO_MODE', false);
   const leagueId = process.env.ESPN_LEAGUE_ID?.trim();
-  if (!leagueId || !/^\d+$/.test(leagueId)) {
+  if (!demoMode && (!leagueId || !/^\d+$/.test(leagueId))) {
     throw new Error('ESPN_LEAGUE_ID is required and must contain only digits.');
   }
   return {
-    leagueId,
+    demoMode,
+    leagueId: leagueId ?? '',
     season: integerEnv('ESPN_SEASON', new Date().getUTCFullYear(), 2018, 2100),
     swid: cleanCookie(process.env.ESPN_SWID),
     espnS2: cleanCookie(process.env.ESPN_S2),
     pollIntervalMs: integerEnv('ESPN_POLL_INTERVAL_MS', 2000, 1000, 60000),
-    requestTimeoutMs: integerEnv('ESPN_REQUEST_TIMEOUT_MS', 10000, 1000, 60000)
+    requestTimeoutMs: integerEnv('ESPN_REQUEST_TIMEOUT_MS', 10000, 1000, 60000),
+    demoPickIntervalMs: integerEnv('DEMO_PICK_SECONDS', 5, 1, 60) * 1000
   };
 }
 
@@ -123,12 +135,16 @@ export function createApp(service) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
-    const service = new DraftService(loadConfig());
+    const config = loadConfig();
+    const service = config.demoMode
+      ? new DemoDraftService(config)
+      : new DraftService(config);
     const server = createApp(service);
     service.start();
     server.on('close', () => service.stop());
     server.listen(PORT, '0.0.0.0', () => {
-      console.log(`Draft board listening on http://0.0.0.0:${PORT}`);
+      const source = config.demoMode ? 'demo draft' : `ESPN league ${config.leagueId}`;
+      console.log(`Draft board listening on http://0.0.0.0:${PORT} using ${source}`);
     });
   } catch (error) {
     console.error(error.message);
