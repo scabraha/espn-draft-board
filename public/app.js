@@ -107,7 +107,7 @@ function playerDetails(pick) {
   position.dataset.position = pick.player.position;
   position.textContent = pick.player.position;
   const team = document.createElement('small');
-  team.textContent = `${pick.player.proTeam} · ${pick.team.abbreviation}`;
+  team.textContent = pick.player.proTeam;
   meta.append(position, team);
   details.append(player, meta);
   return details;
