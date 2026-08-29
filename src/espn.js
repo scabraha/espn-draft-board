@@ -161,6 +161,17 @@ export function normalizeLeague(data, players, clock, now = Date.now()) {
       }
     }));
 
+  const draftSlots = slots.map((pick) => ({
+    overall: Number(pick.overallPickNumber),
+    round: Number(pick.roundId),
+    roundPick: Number(pick.roundPickNumber),
+    team: teamById.get(Number(pick.teamId)) ?? {
+      id: Number(pick.teamId),
+      name: `Team ${pick.teamId}`,
+      abbreviation: `T${pick.teamId}`
+    }
+  }));
+
   const inProgress = Boolean(data.draftDetail?.inProgress);
   const complete = Boolean(data.draftDetail?.drafted) || (slots.length > 0 && picks.length === slots.length);
   const secondsPerPick = Number(settings.timePerSelection) || 0;
@@ -179,6 +190,7 @@ export function normalizeLeague(data, players, clock, now = Date.now()) {
     status: complete ? 'complete' : inProgress ? 'in_progress' : 'waiting',
     picks,
     upcoming,
+    draftSlots,
     teams,
     clock: {
       secondsPerPick,

@@ -1,12 +1,21 @@
 # ESPN Draft Board
 
-A read-only, spectator-friendly fantasy football draft board. It displays completed picks, the team on the clock, the next two teams, and a live countdown without exposing personal rankings or draft strategy.
+A clean, read-only draft board for ESPN Fantasy Football. Put it on a TV or
+projector so everyone can follow the draft without seeing anyone's rankings,
+queue, or draft strategy.
 
-The Node.js backend is the only component that contacts ESPN. It refreshes ESPN on its own schedule and pushes sanitized snapshots to browsers over server-sent events, so ESPN cookies and raw league data never reach public viewers.
+The board shows:
 
-> ESPN does not offer a supported public Fantasy API or API keys. This app uses ESPN's private web API with your existing ESPN session cookies. ESPN may change that API without notice.
+- the team currently on the clock
+- the next two teams in the draft order
+- completed picks grouped by round
+- an estimated countdown for the current pick
+- a ding when the turn passes to a different team
+- live updates without refreshing the page
 
-## Run with Docker
+## Quick start
+
+The easiest way to run the board is with Docker Compose.
 
 1. Copy the example configuration:
 
@@ -14,62 +23,113 @@ The Node.js backend is the only component that contacts ESPN. It refreshes ESPN 
    cp .env.example .env
    ```
 
-2. Set `ESPN_LEAGUE_ID` and `ESPN_SEASON` in `.env`.
-3. For a private league, also set `ESPN_SWID` and `ESPN_S2` as described below.
-4. Start the board:
+2. Add your ESPN league ID and season to `.env`. Private leagues also need the
+   `SWID` and `espn_s2` cookies described below.
+
+3. Start the board:
 
    ```sh
    docker compose up --build
    ```
 
-5. Open <http://localhost:3000>. The backend refreshes ESPN every two seconds and pushes updates to every connected board.
+4. Open <http://localhost:3000>.
 
-The credentials stay on the server and are never included in the browser API response. Do not expose the `.env` file, commit it, or put its values in a Docker image.
+The board checks ESPN every two seconds and sends updates to connected browsers
+as soon as it sees a change.
 
-## ESPN configuration
+## Try it without an ESPN league
 
-### League ID
+Demo mode runs a short, fictional snake draft and starts a new pick every five
+seconds. It loops automatically, making it easy to test the board, timer, and
+turn sound:
 
-Open your league on ESPN. The number after `leagueId=` in the URL is the value for `ESPN_LEAGUE_ID`.
+```sh
+DEMO_MODE=true docker compose up --build
+```
 
-### Private league credentials
+Open <http://localhost:3000>, then click or press a key once to allow browser
+audio. No ESPN league ID or cookies are needed.
 
-There is no API key to request. Sign in to ESPN in a desktop browser, then retrieve the two session cookies:
+## ESPN setup
 
-1. Open <https://fantasy.espn.com/> and sign in.
-2. Open browser developer tools.
-3. In Chrome or Edge, select **Application → Storage → Cookies → https://fantasy.espn.com**. In Firefox, select **Storage → Cookies**.
-4. Copy the values of `SWID` and `espn_s2` into `ESPN_SWID` and `ESPN_S2`.
+### Find your league ID
 
-`SWID` normally includes braces; keep them. These cookies grant access to your ESPN account. Treat them like passwords, use them only as server-side secrets, and replace them if they expire.
+Open your league on the ESPN Fantasy website. The number after `leagueId=` in
+the URL is your `ESPN_LEAGUE_ID`.
 
-Public leagues may work with both cookie variables left blank.
+For example, this URL has the league ID `123456789`:
 
-## Environment variables
+```text
+https://fantasy.espn.com/football/league?leagueId=123456789
+```
+
+### Connect to a private league
+
+ESPN does not provide API keys for fantasy leagues, so private leagues require
+cookies from an existing ESPN session:
+
+1. Sign in at <https://fantasy.espn.com/>.
+2. Open your browser's developer tools.
+3. In Chrome or Edge, go to **Application → Storage → Cookies**. In Firefox,
+   go to **Storage → Cookies**.
+4. Select `https://fantasy.espn.com` and copy the values of `SWID` and
+   `espn_s2` into your `.env` file.
+
+Keep the braces around the `SWID` value. These cookies provide access to your
+ESPN account, so treat them like passwords: never commit them, share them, or
+expose the `.env` file publicly.
+
+Some public leagues work without cookies, but ESPN may still require an
+authenticated session to read them.
+
+## Configuration
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
+| `DEMO_MODE` | No | `false` | Use the built-in fictional draft instead of ESPN |
+| `DEMO_PICK_SECONDS` | No | `5` | Seconds between picks in demo mode |
 | `ESPN_LEAGUE_ID` | Yes | — | Numeric ESPN league ID |
 | `ESPN_SEASON` | No | Current year | Fantasy season |
 | `ESPN_SWID` | Private leagues | — | ESPN `SWID` session cookie |
 | `ESPN_S2` | Private leagues | — | ESPN `espn_s2` session cookie |
 | `PORT` | No | `3000` | HTTP port |
-| `ESPN_POLL_INTERVAL_MS` | No | `2000` | Minimum interval between ESPN requests |
+| `ESPN_POLL_INTERVAL_MS` | No | `2000` | Minimum time between ESPN requests |
 | `ESPN_REQUEST_TIMEOUT_MS` | No | `10000` | ESPN request timeout |
 
-The countdown is synchronized to when this server first observes each pick because ESPN's league snapshot does not expose an authoritative live clock. It resets on every new selection and should be treated as an estimate.
+## A couple of details
+
+**The clock is an estimate.** ESPN's league response does not include the live
+draft-room clock. The board starts a fresh timer when it first sees the draft
+begin or a new pick appear.
+
+**Browsers block sound until the page is used.** Click or press a key on the
+board once after opening it. After that, the board will ding whenever a
+different team goes on the clock. A team with consecutive picks at the turn of
+a snake draft only dings once.
+
+**This uses an unofficial ESPN API.** ESPN does not publish or support the
+Fantasy API used by this project, and it may change without notice.
 
 ## Run without Docker
 
-Node.js 22 or newer is required.
+Node.js 22 or newer is required. Set the environment variables in your shell,
+then start the server:
 
 ```sh
 ESPN_LEAGUE_ID=123456789 ESPN_SEASON=2026 npm start
 ```
 
-Run checks with:
+For a private league, set `ESPN_SWID` and `ESPN_S2` in the same environment.
+
+## Development
+
+Run the syntax checks and test suite with:
 
 ```sh
 npm run check
 npm test
 ```
+
+The Node.js server is the only part of the application that contacts ESPN. It
+sends a smaller, sanitized snapshot to browsers over server-sent events, so
+ESPN cookies and raw league data are not included in client responses.
