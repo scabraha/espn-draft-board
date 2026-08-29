@@ -116,3 +116,32 @@ test('generates snake slots when ESPN only returns settings', () => {
   assert.deepEqual(result.upcoming.map((pick) => pick.team.id), [1, 2, 2]);
   assert.equal(result.status, 'waiting');
 });
+
+test('backend polling publishes refreshed snapshots', async () => {
+  let refreshes = 0;
+  let published;
+  const service = new DraftService(
+    { pollIntervalMs: 10_000 },
+    {
+      now: () => 1_000,
+      fetchLeague: async () => {
+        refreshes += 1;
+        return league;
+      },
+      fetchPlayers: async () => new Map()
+    }
+  );
+  const update = new Promise((resolve) => {
+    service.subscribe((snapshot) => {
+      published = snapshot;
+      resolve();
+    });
+  });
+
+  service.start();
+  await update;
+  service.stop();
+
+  assert.equal(refreshes, 1);
+  assert.equal(published.league.name, 'Test League');
+});

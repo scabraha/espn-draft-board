@@ -102,34 +102,35 @@ function tick() {
   $('timer').classList.toggle('urgent', remaining <= 10);
 }
 
-async function refresh() {
-  try {
-    const response = await fetch('/api/draft', { cache: 'no-store' });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
-    state.snapshot = data;
-    state.timerOffset = new Date(data.updatedAt).getTime() - Date.now();
-    renderStatus(data);
-    const pickSignature = data.picks
-      .map((pick) => `${pick.overall}:${pick.team.id}:${pick.player.id}`)
-      .join('|');
-    if (pickSignature !== state.renderedPicks) {
-      renderBoard(data);
-      state.renderedPicks = pickSignature;
-    }
-    tick();
-    $('last-updated').textContent = `Updated ${new Date(data.updatedAt).toLocaleTimeString()}`;
-    $('connection-label').textContent = 'Live';
-    $('connection-dot').className = 'live';
-    $('error').hidden = true;
-  } catch (error) {
-    $('connection-label').textContent = 'Reconnecting';
-    $('connection-dot').className = 'offline';
-    $('error').textContent = error.message;
-    $('error').hidden = false;
+function applySnapshot(data) {
+  state.snapshot = data;
+  state.timerOffset = new Date(data.updatedAt).getTime() - Date.now();
+  renderStatus(data);
+  const pickSignature = data.picks
+    .map((pick) => `${pick.overall}:${pick.team.id}:${pick.player.id}`)
+    .join('|');
+  if (pickSignature !== state.renderedPicks) {
+    renderBoard(data);
+    state.renderedPicks = pickSignature;
   }
+  tick();
+  $('last-updated').textContent = `Updated ${new Date(data.updatedAt).toLocaleTimeString()}`;
+  $('connection-label').textContent = 'Live';
+  $('connection-dot').className = 'live';
+  $('error').hidden = true;
 }
 
-refresh();
-setInterval(refresh, 2000);
+const updates = new EventSource('/api/events');
+updates.addEventListener('draft', (event) => {
+  try {
+    applySnapshot(JSON.parse(event.data));
+  } catch {
+    $('error').textContent = 'Received an invalid update from the server.';
+    $('error').hidden = false;
+  }
+});
+updates.onerror = () => {
+  $('connection-label').textContent = 'Reconnecting';
+  $('connection-dot').className = 'offline';
+};
 setInterval(tick, 250);

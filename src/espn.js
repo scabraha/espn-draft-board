@@ -203,6 +203,34 @@ export class DraftService {
     this.inProgress = false;
     this.clock = { startedAt: this.now() };
     this.players = new Map();
+    this.listeners = new Set();
+    this.pollTimer = null;
+  }
+
+  start() {
+    if (this.pollTimer) return;
+    void this.poll();
+    this.pollTimer = setInterval(() => void this.poll(), this.config.pollIntervalMs);
+  }
+
+  stop() {
+    clearInterval(this.pollTimer);
+    this.pollTimer = null;
+  }
+
+  subscribe(listener) {
+    this.listeners.add(listener);
+    if (this.cached) queueMicrotask(() => listener(this.cached));
+    return () => this.listeners.delete(listener);
+  }
+
+  async poll() {
+    try {
+      const snapshot = await this.snapshot();
+      for (const listener of this.listeners) listener(snapshot);
+    } catch (error) {
+      console.error(`Draft refresh failed: ${error.message}`);
+    }
   }
 
   async snapshot() {

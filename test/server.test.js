@@ -31,3 +31,28 @@ test('rejects unknown files and methods', async () => {
   assert.equal(missing.status, 404);
   assert.equal(post.status, 405);
 });
+
+test('streams backend snapshots as server-sent events', async () => {
+  let publish;
+  const streamingServer = createApp({
+    snapshot: async () => ({}),
+    subscribe(listener) {
+      publish = listener;
+      return () => {};
+    }
+  });
+  await new Promise((resolve) => streamingServer.listen(0, '127.0.0.1', resolve));
+  const url = `http://127.0.0.1:${streamingServer.address().port}/api/events`;
+  const response = await fetch(url);
+  const reader = response.body.getReader();
+
+  assert.match(response.headers.get('content-type'), /^text\/event-stream/);
+  publish({ updatedAt: '2026-08-29T00:00:00.000Z', picks: [] });
+  const first = new TextDecoder().decode((await reader.read()).value);
+  const second = new TextDecoder().decode((await reader.read()).value);
+  assert.match(first + second, /event: draft/);
+  assert.match(first + second, /"picks":\[\]/);
+
+  await reader.cancel();
+  await new Promise((resolve) => streamingServer.close(resolve));
+});

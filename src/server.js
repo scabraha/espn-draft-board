@@ -52,6 +52,10 @@ function sendJson(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
+function sendEvent(response, event, body) {
+  response.write(`event: ${event}\ndata: ${JSON.stringify(body)}\n\n`);
+}
+
 const MIME = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
@@ -82,6 +86,26 @@ export function createApp(service) {
       return;
     }
 
+    if (url.pathname === '/api/events') {
+      if (typeof service.subscribe !== 'function') {
+        sendJson(response, 501, { error: 'Real-time updates are unavailable' });
+        return;
+      }
+      response.writeHead(200, {
+        ...headers('text/event-stream; charset=utf-8'),
+        connection: 'keep-alive',
+        'x-accel-buffering': 'no'
+      });
+      response.write('retry: 2000\n\n');
+      const unsubscribe = service.subscribe((snapshot) => sendEvent(response, 'draft', snapshot));
+      const heartbeat = setInterval(() => response.write(': heartbeat\n\n'), 15000);
+      request.on('close', () => {
+        clearInterval(heartbeat);
+        unsubscribe();
+      });
+      return;
+    }
+
     const file = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
     if (!['index.html', 'app.js', 'styles.css'].includes(file)) {
       sendJson(response, 404, { error: 'Not found' });
@@ -99,7 +123,10 @@ export function createApp(service) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
-    const server = createApp(new DraftService(loadConfig()));
+    const service = new DraftService(loadConfig());
+    const server = createApp(service);
+    service.start();
+    server.on('close', () => service.stop());
     server.listen(PORT, '0.0.0.0', () => {
       console.log(`Draft board listening on http://0.0.0.0:${PORT}`);
     });
