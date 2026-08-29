@@ -12,6 +12,8 @@ test('advances and loops through a demo snake draft', () => {
   const opening = service.snapshot();
   assert.equal(opening.status, 'in_progress');
   assert.equal(opening.league.type, 'SNAKE');
+  assert.equal(opening.league.rounds, 2);
+  assert.equal(opening.league.teamCount, 12);
   assert.equal(opening.teams.length, 12);
   assert.equal(opening.picks.length, 0);
   assert.equal(opening.upcoming[0].team.id, 1);

@@ -112,6 +112,7 @@ export class DemoDraftService {
         name: 'Demo League',
         draftSettings: {
           type: 'SNAKE',
+          rounds: SLOTS.length / TEAMS.length,
           timePerSelection: this.config.demoPickIntervalMs / 1000
         }
       },

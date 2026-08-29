@@ -41,6 +41,8 @@ test('normalizes completed and upcoming picks without exposing ESPN data', () =>
   assert.equal(result.draftSlots[3].team.name, 'Alpha Team');
   assert.equal(result.clock.remainingSeconds, 55);
   assert.equal(result.status, 'in_progress');
+  assert.equal(result.league.rounds, 2);
+  assert.equal(result.league.teamCount, 2);
   assert.equal('settings' in result, false);
 });
 
@@ -95,6 +97,33 @@ test('resets the clock when a waiting draft starts', async () => {
   assert.equal(result.clock.remainingSeconds, 60);
 });
 
+test('freezes and resumes the estimated clock when a draft pauses', async () => {
+  let now = 1_000;
+  const currentLeague = structuredClone(league);
+  const service = new DraftService(
+    { pollIntervalMs: 1_000 },
+    {
+      now: () => now,
+      fetchLeague: async () => currentLeague,
+      fetchPlayers: async () => new Map()
+    }
+  );
+
+  await service.snapshot();
+  now = 21_000;
+  currentLeague.draftDetail.inProgress = false;
+  const paused = await service.snapshot();
+  assert.equal(paused.status, 'paused');
+  assert.equal(paused.clock.state, 'paused');
+  assert.equal(paused.clock.remainingSeconds, 40);
+
+  now = 51_000;
+  currentLeague.draftDetail.inProgress = true;
+  const resumed = await service.snapshot();
+  assert.equal(resumed.status, 'in_progress');
+  assert.equal(resumed.clock.remainingSeconds, 40);
+});
+
 test('treats negative defense IDs as completed picks', () => {
   const withDefense = structuredClone(league);
   withDefense.draftDetail.picks[0].playerId = -16033;
@@ -146,4 +175,16 @@ test('backend polling publishes refreshed snapshots', async () => {
 
   assert.equal(refreshes, 1);
   assert.equal(published.league.name, 'Test League');
+});
+
+test('backend polling publishes ESPN refresh errors', async () => {
+  const service = new DraftService(
+    { pollIntervalMs: 10_000 },
+    { fetchLeague: async () => { throw new Error('ESPN unavailable'); } }
+  );
+  const failure = new Promise((resolve) => service.subscribeError(resolve));
+
+  service.start();
+  assert.equal(await failure, 'ESPN unavailable');
+  service.stop();
 });

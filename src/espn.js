@@ -174,10 +174,12 @@ export function normalizeLeague(data, players, clock, now = Date.now()) {
 
   const inProgress = Boolean(data.draftDetail?.inProgress);
   const complete = Boolean(data.draftDetail?.drafted) || (slots.length > 0 && picks.length === slots.length);
+  const paused = !complete && clock.pausedAt !== null && clock.pausedAt !== undefined;
   const secondsPerPick = Number(settings.timePerSelection) || 0;
   const expiresAt = inProgress && !complete && secondsPerPick > 0
     ? clock.startedAt + secondsPerPick * 1000
     : null;
+  const remainingAt = paused ? clock.pausedAt : now;
 
   return {
     league: {
@@ -185,9 +187,11 @@ export function normalizeLeague(data, players, clock, now = Date.now()) {
       name: data.settings?.name ?? 'ESPN Fantasy Football',
       season: Number(data.seasonId),
       draftAt: settings.date ?? null,
-      type: settings.type ?? 'SNAKE'
+      type: settings.type ?? 'SNAKE',
+      rounds: Number(settings.rounds) || Math.max(0, ...slots.map((slot) => Number(slot.roundId))),
+      teamCount: teams.length
     },
-    status: complete ? 'complete' : inProgress ? 'in_progress' : 'waiting',
+    status: complete ? 'complete' : paused ? 'paused' : inProgress ? 'in_progress' : 'waiting',
     picks,
     upcoming,
     draftSlots,
@@ -195,8 +199,11 @@ export function normalizeLeague(data, players, clock, now = Date.now()) {
     clock: {
       secondsPerPick,
       expiresAt,
-      remainingSeconds: expiresAt ? Math.max(0, Math.ceil((expiresAt - now) / 1000)) : null,
-      estimated: inProgress && !complete
+      remainingSeconds: secondsPerPick > 0 && (inProgress || paused)
+        ? Math.max(0, Math.ceil((clock.startedAt + secondsPerPick * 1000 - remainingAt) / 1000))
+        : null,
+      estimated: (inProgress || paused) && !complete,
+      state: complete ? 'complete' : paused ? 'paused' : inProgress ? 'running' : 'unavailable'
     },
     updatedAt: new Date(now).toISOString()
   };
@@ -213,9 +220,10 @@ export class DraftService {
     this.pending = null;
     this.completedPicks = null;
     this.inProgress = false;
-    this.clock = { startedAt: this.now() };
+    this.clock = { startedAt: this.now(), pausedAt: null };
     this.players = new Map();
     this.listeners = new Set();
+    this.errorListeners = new Set();
     this.pollTimer = null;
   }
 
@@ -236,12 +244,18 @@ export class DraftService {
     return () => this.listeners.delete(listener);
   }
 
+  subscribeError(listener) {
+    this.errorListeners.add(listener);
+    return () => this.errorListeners.delete(listener);
+  }
+
   async poll() {
     try {
       const snapshot = await this.snapshot();
       for (const listener of this.listeners) listener(snapshot);
     } catch (error) {
       console.error(`Draft refresh failed: ${error.message}`);
+      for (const listener of this.errorListeners) listener(error.message);
     }
   }
 
@@ -258,14 +272,23 @@ export class DraftService {
     const rawPicks = league.draftDetail?.picks ?? [];
     const completed = rawPicks.filter(isSelectedPick);
     const inProgress = Boolean(league.draftDetail?.inProgress);
-    if (
-      this.completedPicks === null
-      || completed.length !== this.completedPicks
-      || (inProgress && !this.inProgress)
-    ) {
+    const complete = Boolean(league.draftDetail?.drafted)
+      || (rawPicks.length > 0 && completed.length === rawPicks.length);
+    const pickChanged = this.completedPicks === null || completed.length !== this.completedPicks;
+    if (pickChanged) {
       this.clock.startedAt = now;
-      this.completedPicks = completed.length;
+      if (this.clock.pausedAt !== null) this.clock.pausedAt = now;
+    } else if (inProgress && !this.inProgress) {
+      if (this.clock.pausedAt !== null) {
+        this.clock.startedAt += now - this.clock.pausedAt;
+        this.clock.pausedAt = null;
+      } else {
+        this.clock.startedAt = now;
+      }
+    } else if (!inProgress && this.inProgress && !complete) {
+      this.clock.pausedAt = now;
     }
+    this.completedPicks = completed.length;
     this.inProgress = inProgress;
     const ids = [...new Set(completed.map((pick) => Number(pick.playerId)))];
     const missingIds = ids.filter((id) => !this.players.has(id));
