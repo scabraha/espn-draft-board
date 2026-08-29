@@ -15,7 +15,7 @@ const league = {
     }
   },
   teams: [
-    { id: 1, location: 'Alpha', nickname: 'Team', abbrev: 'ALP' },
+    { id: 1, location: 'Alpha', nickname: 'Team', abbrev: 'ALP', logo: 'https://example.com/alpha.png' },
     { id: 2, location: 'Beta', nickname: 'Team', abbrev: 'BET' }
   ],
   draftDetail: {
@@ -39,6 +39,8 @@ test('normalizes completed and upcoming picks without exposing ESPN data', () =>
   assert.equal(result.upcoming[1].team.name, 'Beta Team');
   assert.equal(result.draftSlots.length, 4);
   assert.equal(result.draftSlots[3].team.name, 'Alpha Team');
+  assert.equal(result.draftSlots[3].team.logo, 'https://example.com/alpha.png');
+  assert.equal(result.upcoming[0].team.logo, null);
   assert.equal(result.clock.remainingSeconds, 55);
   assert.equal(result.status, 'in_progress');
   assert.equal(result.league.rounds, 2);

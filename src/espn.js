@@ -119,7 +119,8 @@ export function normalizeLeague(data, players, clock, now = Date.now()) {
   const teams = (data.teams ?? []).map((team) => ({
     id: Number(team.id),
     name: teamName(team),
-    abbreviation: team.abbrev ?? `T${team.id}`
+    abbreviation: team.abbrev ?? `T${team.id}`,
+    logo: typeof team.logo === 'string' && team.logo ? team.logo : null
   }));
   const teamById = new Map(teams.map((team) => [team.id, team]));
   let slots = [...(data.draftDetail?.picks ?? [])]

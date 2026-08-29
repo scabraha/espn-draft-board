@@ -31,6 +31,7 @@ main { width: calc(100% - 24px); margin: 14px auto 32px; }
 .on-clock { display: grid; grid-template-columns: auto 1fr auto; align-content: center; align-items: center; gap: 16px; border-top: 3px solid var(--accent); }
 .on-clock .label { grid-column: 1 / -1; }
 .team-mark { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 10px; background: var(--accent); color: #0b1200; font-weight: 900; font-size: .9rem; }
+.team-mark img, .team-heading span img { grid-area: 1 / 1; width: 100%; height: 100%; border-radius: inherit; background: var(--panel-2); object-fit: contain; }
 .on-clock h2 { font-size: clamp(1.3rem, 3vw, 2rem); letter-spacing: -.04em; }
 .on-clock p:not(.label) { color: var(--muted); margin-top: 6px; }
 .timer { font: 800 clamp(1.8rem, 4vw, 3rem)/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: -.08em; font-variant-numeric: tabular-nums; }
@@ -57,7 +58,7 @@ main { width: calc(100% - 24px); margin: 14px auto 32px; }
 .grid-corner, .team-heading { position: sticky; top: 0; z-index: 2; min-height: 72px; background: #151b23; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); }
 .grid-corner { left: 0; z-index: 3; display: grid; place-items: center; color: var(--muted); font: 800 .65rem ui-monospace, monospace; }
 .team-heading { display: grid; place-items: center; align-content: center; gap: 5px; padding: 8px 5px; text-align: center; }
-.team-heading span { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid #3c4654; border-radius: 50%; color: var(--muted); font-size: .6rem; font-weight: 900; }
+.team-heading span { display: grid; place-items: center; width: 30px; height: 30px; overflow: hidden; border: 1px solid #3c4654; border-radius: 50%; color: var(--muted); font-size: .6rem; font-weight: 900; }
 .team-heading strong { max-width: 100%; overflow: hidden; font-size: .68rem; letter-spacing: .04em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .team-counts { color: var(--muted); font: 600 .52rem ui-monospace, monospace; white-space: nowrap; }
 .team-heading.active { background: #153322; box-shadow: inset 0 3px var(--accent); }
