@@ -57,7 +57,7 @@ main { width: calc(100% - 24px); margin: 14px auto 32px; }
 .section-heading h2 { font-size: 1.35rem; }
 #last-updated { color: var(--muted); font-size: .75rem; }
 .board-wrap { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: rgba(9, 13, 18, .75); }
-.board { min-height: 390px; overflow: auto; scroll-behavior: smooth; }
+.board { height: 390px; overflow: auto; scroll-behavior: smooth; }
 .draft-grid { --team-count: 12; display: grid; grid-template-columns: 44px repeat(var(--team-count), minmax(118px, 1fr)); min-width: calc(44px + var(--team-count) * 118px); }
 .grid-corner, .team-heading { position: sticky; top: 0; z-index: 2; min-height: 72px; background: #151b23; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); }
 .grid-corner { left: 0; z-index: 3; display: grid; place-items: center; color: var(--muted); font: 800 .65rem ui-monospace, monospace; }
