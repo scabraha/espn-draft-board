@@ -215,7 +215,7 @@ function sizeBoard() {
 
 function scrollBoardToLatestPick() {
   const board = $('board');
-  const target = board.querySelector('.latest') ?? board.querySelector('.on-clock-cell');
+  const target = board.querySelector('.on-clock-cell') ?? board.querySelector('.latest');
   if (!target) return;
   const left = target.offsetLeft - board.clientWidth / 2 + target.clientWidth / 2;
   const top = target.offsetTop + target.clientHeight - board.clientHeight;
