@@ -1,4 +1,5 @@
-import { normalizeLeague } from './espn.js';
+import { buildDraftSlots, normalizeLeague } from '../draft.js';
+import { SnapshotChannel } from '../utils/snapshot-channel.js';
 
 const TEAMS = [
   { id: 1, name: 'Fourth and Long', abbrev: 'FAL' },
@@ -42,23 +43,10 @@ const PLAYERS = [
   { id: 24, name: 'Logan Pierce', position: 'TE', proTeam: 'LV' }
 ];
 
-function draftSlots() {
-  const slots = [];
-  const rounds = PLAYERS.length / TEAMS.length;
-  for (let round = 1; round <= rounds; round += 1) {
-    const order = round % 2 === 0 ? [...TEAMS].reverse() : TEAMS;
-    order.forEach((team, index) => slots.push({
-      overallPickNumber: slots.length + 1,
-      roundId: round,
-      roundPickNumber: index + 1,
-      teamId: team.id,
-      playerId: -1
-    }));
-  }
-  return slots;
-}
-
-const SLOTS = draftSlots();
+const SLOTS = buildDraftSlots({
+  order: TEAMS.map((team) => team.id),
+  rounds: PLAYERS.length / TEAMS.length
+});
 const PLAYER_MAP = new Map(PLAYERS.map((player) => [player.id, player]));
 
 export class DemoDraftService {
@@ -66,7 +54,7 @@ export class DemoDraftService {
     this.config = config;
     this.now = dependencies.now ?? Date.now;
     this.startedAt = this.now();
-    this.listeners = new Set();
+    this.channel = new SnapshotChannel(() => this.snapshot());
     this.timer = null;
   }
 
@@ -82,14 +70,11 @@ export class DemoDraftService {
   }
 
   subscribe(listener) {
-    this.listeners.add(listener);
-    queueMicrotask(() => listener(this.snapshot()));
-    return () => this.listeners.delete(listener);
+    return this.channel.subscribe(listener);
   }
 
   publish() {
-    const snapshot = this.snapshot();
-    for (const listener of this.listeners) listener(snapshot);
+    this.channel.publish(this.snapshot());
   }
 
   snapshot() {

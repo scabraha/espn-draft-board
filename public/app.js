@@ -7,6 +7,8 @@ const state = {
   connected: false,
   lastReceivedAt: null,
   upstreamError: null,
+  mode: null,
+  updates: null,
   preferences: {
     sound: false,
     compact: false,
@@ -367,7 +369,8 @@ function renderConnection() {
   const label = $('connection-label');
   const dot = $('connection-dot');
   if (state.upstreamError) {
-    label.textContent = `ESPN error · ${age ?? 0}s ago`;
+    const source = state.mode === 'live' ? 'ESPN' : 'Source';
+    label.textContent = `${source} error · ${age ?? 0}s ago`;
     dot.className = 'offline';
   } else if (!state.connected) {
     label.textContent = age === null ? 'Connecting' : `Reconnecting · ${age}s stale`;
@@ -405,6 +408,61 @@ function togglePreference(name) {
   if (state.snapshot) renderBoard(state.snapshot);
 }
 
+function connect(mode) {
+  state.updates?.close();
+  state.mode = mode;
+  state.snapshot = null;
+  state.renderedBoard = null;
+  state.connected = false;
+  state.lastReceivedAt = null;
+  state.upstreamError = null;
+  $('board').replaceChildren();
+  renderConnection();
+  for (const button of document.querySelectorAll('[data-mode]')) {
+    button.classList.toggle('active', button.dataset.mode === mode);
+  }
+
+  state.updates = new EventSource(`/api/events?mode=${mode}`);
+  state.updates.addEventListener('draft', (event) => {
+    try {
+      applySnapshot(JSON.parse(event.data));
+    } catch {
+      $('error').textContent = 'Received an invalid update from the server.';
+      $('error').hidden = false;
+    }
+  });
+  state.updates.addEventListener('draft-error', (event) => {
+    state.upstreamError = JSON.parse(event.data).message;
+    $('error').textContent = `ESPN refresh failed: ${state.upstreamError}`;
+    $('error').hidden = false;
+    renderConnection();
+  });
+  state.updates.onerror = () => {
+    state.connected = false;
+    renderConnection();
+  };
+}
+
+async function initialize() {
+  try {
+    const response = await fetch('/api/config');
+    if (!response.ok) throw new Error(`Configuration request failed with HTTP ${response.status}.`);
+    const config = await response.json();
+    const liveButton = document.querySelector('[data-mode="live"]');
+    liveButton.disabled = !config.liveAvailable;
+    liveButton.title = config.liveAvailable ? '' : 'Set ESPN_LEAGUE_ID to enable live mode';
+    for (const button of document.querySelectorAll('[data-mode]')) {
+      button.addEventListener('click', () => connect(button.dataset.mode));
+    }
+    connect(config.defaultMode);
+  } catch (error) {
+    $('connection-label').textContent = 'Unavailable';
+    $('connection-dot').className = 'offline';
+    $('error').textContent = error.message;
+    $('error').hidden = false;
+  }
+}
+
 loadPreferences();
 applyPreferences();
 $('sound-control').addEventListener('click', () => void toggleSound());
@@ -417,25 +475,6 @@ $('fullscreen-control').addEventListener('click', () => {
 document.addEventListener('fullscreenchange', () => {
   $('fullscreen-control').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
 });
-
-const updates = new EventSource('/api/events');
-updates.addEventListener('draft', (event) => {
-  try {
-    applySnapshot(JSON.parse(event.data));
-  } catch {
-    $('error').textContent = 'Received an invalid update from the server.';
-    $('error').hidden = false;
-  }
-});
-updates.onerror = () => {
-  state.connected = false;
-  renderConnection();
-};
-updates.addEventListener('upstream-error', (event) => {
-  state.upstreamError = JSON.parse(event.data).message;
-  $('error').textContent = `ESPN refresh failed: ${state.upstreamError}`;
-  $('error').hidden = false;
-  renderConnection();
-});
 setInterval(tick, 250);
 setInterval(renderConnection, 1000);
+void initialize();
