@@ -95,6 +95,17 @@ function teamName(team) {
   return [team.location, team.nickname].filter(Boolean).join(' ') || team.abbrev || `Team ${team.id}`;
 }
 
+function teamLogo(logo) {
+  if (typeof logo !== 'string' || !logo) return null;
+  try {
+    const url = new URL(logo);
+    if (url.protocol === 'http:') url.protocol = 'https:';
+    return url.protocol === 'https:' ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 function generatedSlots(settings, teamCount) {
   const order = settings.pickOrder ?? [];
   const rounds = settings.rounds ?? 0;
@@ -120,7 +131,7 @@ export function normalizeLeague(data, players, clock, now = Date.now()) {
     id: Number(team.id),
     name: teamName(team),
     abbreviation: team.abbrev ?? `T${team.id}`,
-    logo: typeof team.logo === 'string' && team.logo ? team.logo : null
+    logo: teamLogo(team.logo)
   }));
   const teamById = new Map(teams.map((team) => [team.id, team]));
   let slots = [...(data.draftDetail?.picks ?? [])]
