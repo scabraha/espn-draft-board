@@ -16,7 +16,7 @@ const TEAMS = [
   { id: 12, name: 'Victory Formation', abbrev: 'VFM' }
 ];
 
-const PLAYERS = [
+const PLAYER_TEMPLATES = [
   { id: 1, name: 'Marcus Hale', position: 'RB', proTeam: 'DET' },
   { id: 2, name: 'Devin Brooks', position: 'WR', proTeam: 'CIN' },
   { id: 3, name: 'Eli Turner', position: 'QB', proTeam: 'BUF' },
@@ -43,9 +43,20 @@ const PLAYERS = [
   { id: 24, name: 'Logan Pierce', position: 'TE', proTeam: 'LV' }
 ];
 
+const DEMO_ROUNDS = 16;
+const PLAYERS = Array.from({ length: TEAMS.length * DEMO_ROUNDS }, (_, index) => {
+  const template = PLAYER_TEMPLATES[index % PLAYER_TEMPLATES.length];
+  const group = Math.floor(index / PLAYER_TEMPLATES.length) + 1;
+  return {
+    ...template,
+    id: index + 1,
+    name: group === 1 ? template.name : `${template.name} ${group}`
+  };
+});
+
 const SLOTS = buildDraftSlots({
   order: TEAMS.map((team) => team.id),
-  rounds: PLAYERS.length / TEAMS.length
+  rounds: DEMO_ROUNDS
 });
 const PLAYER_MAP = new Map(PLAYERS.map((player) => [player.id, player]));
 
@@ -97,7 +108,7 @@ export class DemoDraftService {
         name: 'Demo League',
         draftSettings: {
           type: 'SNAKE',
-          rounds: SLOTS.length / TEAMS.length,
+          rounds: DEMO_ROUNDS,
           timePerSelection: this.config.demoPickIntervalMs / 1000
         }
       },

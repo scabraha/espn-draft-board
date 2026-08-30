@@ -207,9 +207,25 @@ function playerDetails(pick) {
   return details;
 }
 
+function sizeBoard() {
+  const board = $('board');
+  const top = Math.max(0, board.getBoundingClientRect().top);
+  board.style.height = `${Math.max(240, window.innerHeight - top - 24)}px`;
+}
+
+function scrollBoardToLatestPick() {
+  const board = $('board');
+  const target = board.querySelector('.latest') ?? board.querySelector('.on-clock-cell');
+  if (!target) return;
+  const left = target.offsetLeft - board.clientWidth / 2 + target.clientWidth / 2;
+  const top = target.offsetTop + target.clientHeight - board.clientHeight;
+  board.scrollTo({ left: Math.max(0, left), top: Math.max(0, top), behavior: 'smooth' });
+}
+
 function renderBoard(data) {
   const board = $('board');
   board.replaceChildren();
+  sizeBoard();
   if (!data.draftSlots?.length) {
     const empty = document.createElement('p');
     empty.className = 'empty';
@@ -310,12 +326,7 @@ function renderBoard(data) {
   }
 
   board.append(grid);
-  const currentCell = board.querySelector('.on-clock-cell');
-  if (currentCell) {
-    const left = currentCell.offsetLeft - board.clientWidth / 2 + currentCell.clientWidth / 2;
-    const top = currentCell.offsetTop - board.clientHeight / 2 + currentCell.clientHeight / 2;
-    board.scrollTo({ left: Math.max(0, left), top: Math.max(0, top), behavior: 'smooth' });
-  }
+  scrollBoardToLatestPick();
 }
 
 function tick() {
@@ -476,6 +487,10 @@ $('fullscreen-control').addEventListener('click', () => {
 });
 document.addEventListener('fullscreenchange', () => {
   $('fullscreen-control').textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
+  if (state.snapshot) renderBoard(state.snapshot);
+});
+window.addEventListener('resize', () => {
+  if (state.snapshot) renderBoard(state.snapshot);
 });
 setInterval(tick, 250);
 setInterval(renderConnection, 1000);
