@@ -80,9 +80,11 @@ async function handleRequest(request, response, services, defaultMode) {
       version: 1,
       authentication: 'none',
       endpoints: [
+        { method: 'GET', path: '/api/config', description: 'Available data sources and default mode' },
         { method: 'GET', path: '/api/draft', description: 'Complete current draft snapshot' },
         { method: 'GET', path: '/api/rounds', description: 'Drafted players grouped by round' },
-        { method: 'GET', path: '/api/rounds/{round}', description: 'Drafted players in one round' }
+        { method: 'GET', path: '/api/rounds/{round}', description: 'Drafted players in one round' },
+        { method: 'GET', path: '/api/events', description: 'Live draft updates as server-sent events' }
       ]
     });
     return;

@@ -55,8 +55,16 @@ test('serves drafted players grouped by round', async () => {
   const all = await allResponse.json();
   assert.equal(all.league.name, 'Test');
   assert.equal(all.rounds.length, 2);
-  assert.equal(all.rounds[0].picks[0].player.position, 'RB');
-  assert.equal(all.rounds[0].picks[0].team.name, 'Alpha');
+  assert.deepEqual(all.rounds[0], {
+    number: 1,
+    picks: [{
+      overall: 1,
+      round: 1,
+      roundPick: 1,
+      team: { id: 1, name: 'Alpha', abbreviation: 'ALP', logo: null },
+      player: { id: 100, name: 'Ada Runner', position: 'RB', proTeam: 'BUF' }
+    }]
+  });
   assert.deepEqual(all.rounds[1], { number: 2, picks: [] });
 
   assert.equal(firstResponse.status, 200);
