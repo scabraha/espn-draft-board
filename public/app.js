@@ -134,41 +134,9 @@ function renderStatus(data) {
     $('timer').textContent = '--:--';
   }
 
-  $('up-next').replaceChildren(...data.upcoming.slice(1).map((slot, index) => {
-    const row = document.createElement('div');
-    row.className = 'next-team';
-    const number = document.createElement('span');
-    number.className = 'next-number';
-    number.textContent = String(index + 1).padStart(2, '0');
-    const text = document.createElement('div');
-    const name = document.createElement('strong');
-    name.textContent = slot.team.name;
-    const pick = document.createElement('small');
-    pick.textContent = `Overall pick ${slot.overall}`;
-    text.append(name, pick);
-    row.append(number, text);
-    return row;
-  }));
-}
-
-function formatDraftTime(value) {
-  if (!value) return 'Start time unavailable';
-  const numeric = Number(value);
-  const date = new Date(numeric < 10_000_000_000 ? numeric * 1000 : numeric);
-  if (Number.isNaN(date.getTime())) return 'Start time unavailable';
-  return `Scheduled ${date.toLocaleString()}`;
 }
 
 function renderSummary(data) {
-  const total = data.draftSlots.length;
-  const completed = data.picks.length;
-  const percentage = total ? Math.round(completed / total * 100) : 0;
-  const currentRound = data.upcoming[0]?.round ?? data.picks.at(-1)?.round;
-  $('progress-label').textContent = total
-    ? `${completed} of ${total} picks${currentRound ? ` · Round ${currentRound}` : ''}`
-    : 'Waiting for draft order';
-  $('progress-bar').style.width = `${percentage}%`;
-
   const latest = data.picks.reduce(
     (last, pick) => !last || pick.overall > last.overall ? pick : last,
     null
@@ -177,16 +145,6 @@ function renderSummary(data) {
   $('last-pick-meta').textContent = latest
     ? `${latest.player.position} · ${latest.player.proTeam} · ${latest.team.name}`
     : '';
-
-  const league = data.league;
-  const format = league.type === 'SNAKE' ? 'Snake' : league.type;
-  $('draft-info').textContent = [
-    format,
-    league.teamCount ? `${league.teamCount} teams` : null,
-    league.rounds ? `${league.rounds} rounds` : null,
-    data.clock.secondsPerPick ? `${data.clock.secondsPerPick}s picks` : null
-  ].filter(Boolean).join(' · ');
-  $('draft-time').textContent = data.status === 'waiting' ? formatDraftTime(league.draftAt) : '';
 }
 
 function playerDetails(pick) {
@@ -213,17 +171,35 @@ function sizeBoard() {
   board.style.height = `${Math.max(240, window.innerHeight - top - 24)}px`;
 }
 
-function scrollBoardToLatestPick() {
+function scrollBoardToLatestPick({ allowVerticalScroll }) {
+  if (!allowVerticalScroll) return;
+
   const board = $('board');
-  const target = board.querySelector('.latest') ?? board.querySelector('.on-clock-cell');
+  const target = board.querySelector('.on-clock-cell') ?? board.querySelector('.latest');
   if (!target) return;
-  const left = target.offsetLeft - board.clientWidth / 2 + target.clientWidth / 2;
-  const top = target.offsetTop + target.clientHeight - board.clientHeight;
-  board.scrollTo({ left: Math.max(0, left), top: Math.max(0, top), behavior: 'smooth' });
+
+  const stickyHeaderHeight = board.querySelector('.team-heading')?.offsetHeight ?? 0;
+  const boardRect = board.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const targetTop = targetRect.top - boardRect.top + board.scrollTop;
+  const targetBottom = targetRect.bottom - boardRect.top + board.scrollTop;
+  let top = board.scrollTop;
+
+  if (targetTop < board.scrollTop + stickyHeaderHeight) {
+    top = targetTop - stickyHeaderHeight;
+  } else if (targetBottom > board.scrollTop + board.clientHeight) {
+    top = targetBottom - board.clientHeight;
+  }
+
+  top = Math.max(0, top);
+  if (top === board.scrollTop) return;
+  board.scrollTo({ top, behavior: 'smooth' });
 }
 
-function renderBoard(data) {
+function renderBoard(data, { allowVerticalScroll = false } = {}) {
   const board = $('board');
+  const previousScrollLeft = board.scrollLeft;
+  const previousScrollTop = board.scrollTop;
   board.replaceChildren();
   sizeBoard();
   if (!data.draftSlots?.length) {
@@ -326,7 +302,11 @@ function renderBoard(data) {
   }
 
   board.append(grid);
-  scrollBoardToLatestPick();
+  const scrollBehavior = board.style.scrollBehavior;
+  board.style.scrollBehavior = 'auto';
+  board.scrollTo({ left: previousScrollLeft, top: previousScrollTop });
+  board.style.scrollBehavior = scrollBehavior;
+  scrollBoardToLatestPick({ allowVerticalScroll });
 }
 
 function tick() {
@@ -367,7 +347,13 @@ function applySnapshot(data) {
     .join('|');
   const boardSignature = `${data.status}|${data.upcoming[0]?.overall ?? ''}|${slotSignature}|${pickSignature}`;
   if (boardSignature !== state.renderedBoard) {
-    renderBoard(data);
+    const previousRound = previous?.upcoming[0]?.round;
+    const currentRound = current?.round;
+    renderBoard(data, {
+      allowVerticalScroll: previousRound !== undefined
+        && currentRound !== undefined
+        && currentRound !== previousRound
+    });
     state.renderedBoard = boardSignature;
   }
   tick();
