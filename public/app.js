@@ -123,6 +123,8 @@ function renderStatus(data) {
       $('timer').textContent = data.clock.remainingSeconds === null
         ? 'PAUSED'
         : formatClock(data.clock.remainingSeconds);
+    } else if (!data.clock.expiresAt) {
+      $('timer').textContent = '--:--';
     }
   } else {
     $('clock-label').textContent = 'WAITING';

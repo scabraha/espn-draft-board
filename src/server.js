@@ -24,8 +24,16 @@ function sendJson(response, status, body) {
   response.end(JSON.stringify(body));
 }
 
+const MAX_STREAM_BUFFER_BYTES = 1_000_000;
+
+function writeStream(response, chunk) {
+  if (response.writableEnded || response.destroyed) return;
+  response.write(chunk);
+  if (response.writableLength > MAX_STREAM_BUFFER_BYTES) response.destroy();
+}
+
 function sendEvent(response, event, body) {
-  response.write(`event: ${event}\ndata: ${JSON.stringify(body)}\n\n`);
+  writeStream(response, `event: ${event}\ndata: ${JSON.stringify(body)}\n\n`);
 }
 
 const MIME = {
@@ -46,82 +54,101 @@ function selectService(url, services, defaultMode) {
   return { mode, service: services[mode] };
 }
 
-export function createApp(services, { defaultMode = 'demo' } = {}) {
-  return createServer(async (request, response) => {
-    const url = new URL(request.url, 'http://localhost');
-    if (request.method !== 'GET') {
-      sendJson(response, 405, { error: 'Method not allowed' });
-      return;
-    }
+async function handleRequest(request, response, services, defaultMode) {
+  let url;
+  try {
+    url = new URL(request.url, 'http://localhost');
+  } catch {
+    sendJson(response, 400, { error: 'Bad request' });
+    return;
+  }
 
-    if (url.pathname === '/healthz') {
-      sendJson(response, 200, { status: 'ok' });
-      return;
-    }
+  if (request.method !== 'GET') {
+    sendJson(response, 405, { error: 'Method not allowed' });
+    return;
+  }
 
-    if (url.pathname === '/api/config') {
-      sendJson(response, 200, {
-        defaultMode,
-        liveAvailable: Boolean(services.live)
-      });
-      return;
-    }
+  if (url.pathname === '/healthz') {
+    sendJson(response, 200, { status: 'ok' });
+    return;
+  }
 
-    if (url.pathname === '/api/draft') {
-      const selected = selectService(url, services, defaultMode);
-      if (selected.error) {
-        sendJson(response, selected.error.status, { error: selected.error.message });
-        return;
-      }
-      try {
-        sendJson(response, 200, await selected.service.snapshot());
-      } catch (error) {
-        console.error(`Draft refresh failed: ${error.message}`);
-        sendJson(response, 502, { error: error.message });
-      }
-      return;
-    }
+  if (url.pathname === '/api/config') {
+    sendJson(response, 200, {
+      defaultMode,
+      liveAvailable: Boolean(services.live)
+    });
+    return;
+  }
 
-    if (url.pathname === '/api/events') {
-      const selected = selectService(url, services, defaultMode);
-      if (selected.error) {
-        sendJson(response, selected.error.status, { error: selected.error.message });
-        return;
-      }
-      if (typeof selected.service.subscribe !== 'function') {
-        sendJson(response, 501, { error: 'Real-time updates are unavailable' });
-        return;
-      }
-      response.writeHead(200, {
-        ...headers('text/event-stream; charset=utf-8'),
-        connection: 'keep-alive',
-        'x-accel-buffering': 'no'
-      });
-      response.write('retry: 2000\n\n');
-      const unsubscribe = selected.service.subscribe((snapshot) => sendEvent(response, 'draft', snapshot));
-      const unsubscribeErrors = selected.service.subscribeErrors?.(
-        (error) => sendEvent(response, 'draft-error', error)
-      ) ?? (() => {});
-      const heartbeat = setInterval(() => response.write(': heartbeat\n\n'), 15000);
-      request.on('close', () => {
-        clearInterval(heartbeat);
-        unsubscribe();
-        unsubscribeErrors();
-      });
-      return;
-    }
-
-    const file = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
-    if (!['index.html', 'app.js', 'styles.css'].includes(file)) {
-      sendJson(response, 404, { error: 'Not found' });
+  if (url.pathname === '/api/draft') {
+    const selected = selectService(url, services, defaultMode);
+    if (selected.error) {
+      sendJson(response, selected.error.status, { error: selected.error.message });
       return;
     }
     try {
-      const content = await readFile(join(ROOT, file));
-      response.writeHead(200, headers(MIME[extname(file)]));
-      response.end(content);
-    } catch {
-      sendJson(response, 404, { error: 'Not found' });
+      sendJson(response, 200, await selected.service.snapshot());
+    } catch (error) {
+      console.error(`Draft refresh failed: ${error.message}`);
+      sendJson(response, 502, { error: error.message });
+    }
+    return;
+  }
+
+  if (url.pathname === '/api/events') {
+    const selected = selectService(url, services, defaultMode);
+    if (selected.error) {
+      sendJson(response, selected.error.status, { error: selected.error.message });
+      return;
+    }
+    if (typeof selected.service.subscribe !== 'function') {
+      sendJson(response, 501, { error: 'Real-time updates are unavailable' });
+      return;
+    }
+    response.writeHead(200, {
+      ...headers('text/event-stream; charset=utf-8'),
+      connection: 'keep-alive',
+      'x-accel-buffering': 'no'
+    });
+    response.on('error', () => response.destroy());
+    writeStream(response, 'retry: 2000\n\n');
+    const unsubscribe = selected.service.subscribe((snapshot) => sendEvent(response, 'draft', snapshot));
+    const unsubscribeErrors = selected.service.subscribeErrors?.(
+      (error) => sendEvent(response, 'draft-error', error)
+    ) ?? (() => {});
+    const heartbeat = setInterval(() => writeStream(response, ': heartbeat\n\n'), 15000);
+    heartbeat.unref();
+    response.on('close', () => {
+      clearInterval(heartbeat);
+      unsubscribe();
+      unsubscribeErrors();
+    });
+    return;
+  }
+
+  const file = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
+  if (!['index.html', 'app.js', 'styles.css'].includes(file)) {
+    sendJson(response, 404, { error: 'Not found' });
+    return;
+  }
+  try {
+    const content = await readFile(join(ROOT, file));
+    response.writeHead(200, headers(MIME[extname(file)]));
+    response.end(content);
+  } catch {
+    sendJson(response, 404, { error: 'Not found' });
+  }
+}
+
+export function createApp(services, { defaultMode = 'demo' } = {}) {
+  return createServer(async (request, response) => {
+    try {
+      await handleRequest(request, response, services, defaultMode);
+    } catch (error) {
+      console.error(`Request failed: ${error.message}`);
+      if (!response.headersSent) sendJson(response, 500, { error: 'Internal server error' });
+      else response.end();
     }
   });
 }
@@ -144,6 +171,12 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       const source = services.live ? `demo and ESPN league ${config.leagueId}` : 'demo';
       console.log(`Draft board listening on http://0.0.0.0:${port} with ${source} mode`);
     });
+    for (const signal of ['SIGINT', 'SIGTERM']) {
+      process.once(signal, () => {
+        server.close(() => process.exit(0));
+        server.closeAllConnections();
+      });
+    }
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

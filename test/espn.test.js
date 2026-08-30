@@ -210,3 +210,22 @@ test('backend polling publishes refresh errors', async () => {
     updatedAt: '1970-01-01T00:00:01.000Z'
   });
 });
+
+test('reports a draft that is already paused when the server starts', async () => {
+  const currentLeague = structuredClone(league);
+  currentLeague.draftDetail.inProgress = false;
+  const service = new DraftService(
+    { pollIntervalMs: 1_000 },
+    {
+      now: () => 1_000,
+      data: {
+        fetchLeague: async () => currentLeague,
+        fetchPlayers: async () => new Map()
+      }
+    }
+  );
+
+  const first = await service.snapshot();
+  assert.equal(first.status, 'paused');
+  assert.equal(first.clock.remainingSeconds, 60);
+});

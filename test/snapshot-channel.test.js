@@ -12,3 +12,14 @@ test('does not deliver a queued snapshot after unsubscribe', async () => {
 
   assert.equal(deliveries, 0);
 });
+
+test('delivers a snapshot to every listener when one throws', () => {
+  const delivered = [];
+  const channel = new SnapshotChannel(() => null);
+  channel.subscribe(() => { throw new Error('socket closed'); });
+  channel.subscribe((snapshot) => delivered.push(snapshot));
+
+  channel.publish({ status: 'in_progress' });
+
+  assert.deepEqual(delivered, [{ status: 'in_progress' }]);
+});
