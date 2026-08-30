@@ -15,6 +15,7 @@ test('advances and loops through a demo snake draft', () => {
   assert.equal(opening.league.rounds, 16);
   assert.equal(opening.league.teamCount, 12);
   assert.equal(opening.teams.length, 12);
+  assert.equal(opening.draftSlots.length, 192);
   assert.equal(opening.picks.length, 0);
   assert.equal(opening.upcoming[0].team.id, 1);
 
@@ -23,6 +24,11 @@ test('advances and loops through a demo snake draft', () => {
   assert.equal(snakeTurn.picks.length, 12);
   assert.equal(snakeTurn.upcoming[0].team.id, 12);
   assert.equal(snakeTurn.upcoming[1].team.id, 11);
+
+  now = 900_000;
+  const finalRound = service.snapshot();
+  assert.equal(finalRound.picks.length, 180);
+  assert.equal(finalRound.upcoming[0].round, 16);
 
   now = 960_000;
   assert.equal(service.snapshot().status, 'complete');
