@@ -7,7 +7,20 @@ let server;
 let baseUrl;
 
 before(async () => {
-  const service = { snapshot: async () => ({ league: { name: 'Test' }, picks: [] }) };
+  const service = {
+    snapshot: async () => ({
+      league: { name: 'Test', rounds: 2 },
+      status: 'in_progress',
+      picks: [{
+        overall: 1,
+        round: 1,
+        roundPick: 1,
+        team: { id: 1, name: 'Alpha', abbreviation: 'ALP', logo: null },
+        player: { id: 100, name: 'Ada Runner', position: 'RB', proTeam: 'BUF' }
+      }],
+      updatedAt: '2026-08-30T00:00:00.000Z'
+    })
+  };
   server = createApp({ demo: service, live: null });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -16,16 +29,44 @@ before(async () => {
 after(() => new Promise((resolve) => server.close(resolve)));
 
 test('serves the app and health endpoint', async () => {
-  const [page, health, config] = await Promise.all([
+  const [page, health, config, api] = await Promise.all([
     fetch(`${baseUrl}/`),
     fetch(`${baseUrl}/healthz`),
-    fetch(`${baseUrl}/api/config`)
+    fetch(`${baseUrl}/api/config`),
+    fetch(`${baseUrl}/api`)
   ]);
   assert.equal(page.status, 200);
   assert.match(await page.text(), /Live Draft Board/);
   assert.match(page.headers.get('content-security-policy'), /img-src 'self' https:/);
   assert.deepEqual(await health.json(), { status: 'ok' });
   assert.deepEqual(await config.json(), { defaultMode: 'demo', liveAvailable: false });
+  assert.equal((await api.json()).authentication, 'none');
+});
+
+test('serves drafted players grouped by round', async () => {
+  const [allResponse, firstResponse, missingResponse, invalidResponse] = await Promise.all([
+    fetch(`${baseUrl}/api/rounds`),
+    fetch(`${baseUrl}/api/rounds/1`),
+    fetch(`${baseUrl}/api/rounds/3`),
+    fetch(`${baseUrl}/api/rounds/all`)
+  ]);
+
+  assert.equal(allResponse.status, 200);
+  const all = await allResponse.json();
+  assert.equal(all.league.name, 'Test');
+  assert.equal(all.rounds.length, 2);
+  assert.equal(all.rounds[0].picks[0].player.position, 'RB');
+  assert.equal(all.rounds[0].picks[0].team.name, 'Alpha');
+  assert.deepEqual(all.rounds[1], { number: 2, picks: [] });
+
+  assert.equal(firstResponse.status, 200);
+  assert.equal((await firstResponse.json()).round.number, 1);
+  assert.equal(missingResponse.status, 404);
+  assert.deepEqual(await missingResponse.json(), { error: 'Round not found.' });
+  assert.equal(invalidResponse.status, 400);
+  assert.deepEqual(await invalidResponse.json(), {
+    error: 'Round must be a positive integer.'
+  });
 });
 
 test('rejects unknown files and methods', async () => {

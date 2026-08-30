@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { roundsResponse } from './api.js';
 import { loadConfig, loadPort } from './config.js';
 import { DemoDraftService } from './services/demo-draft-service.js';
 import { DraftService } from './services/draft-service.js';
@@ -73,6 +74,20 @@ async function handleRequest(request, response, services, defaultMode) {
     return;
   }
 
+  if (url.pathname === '/api') {
+    sendJson(response, 200, {
+      name: 'ESPN Draft Board API',
+      version: 1,
+      authentication: 'none',
+      endpoints: [
+        { method: 'GET', path: '/api/draft', description: 'Complete current draft snapshot' },
+        { method: 'GET', path: '/api/rounds', description: 'Drafted players grouped by round' },
+        { method: 'GET', path: '/api/rounds/{round}', description: 'Drafted players in one round' }
+      ]
+    });
+    return;
+  }
+
   if (url.pathname === '/api/config') {
     sendJson(response, 200, {
       defaultMode,
@@ -89,6 +104,32 @@ async function handleRequest(request, response, services, defaultMode) {
     }
     try {
       sendJson(response, 200, await selected.service.snapshot());
+    } catch (error) {
+      console.error(`Draft refresh failed: ${error.message}`);
+      sendJson(response, 502, { error: error.message });
+    }
+    return;
+  }
+
+  const roundMatch = url.pathname.match(/^\/api\/rounds\/([^/]+)$/);
+  if (url.pathname === '/api/rounds' || roundMatch) {
+    const roundNumber = roundMatch ? Number(roundMatch[1]) : null;
+    if (roundMatch && (!Number.isInteger(roundNumber) || roundNumber < 1)) {
+      sendJson(response, 400, { error: 'Round must be a positive integer.' });
+      return;
+    }
+    const selected = selectService(url, services, defaultMode);
+    if (selected.error) {
+      sendJson(response, selected.error.status, { error: selected.error.message });
+      return;
+    }
+    try {
+      const body = roundsResponse(await selected.service.snapshot(), roundNumber);
+      if (!body) {
+        sendJson(response, 404, { error: 'Round not found.' });
+        return;
+      }
+      sendJson(response, 200, body);
     } catch (error) {
       console.error(`Draft refresh failed: ${error.message}`);
       sendJson(response, 502, { error: error.message });

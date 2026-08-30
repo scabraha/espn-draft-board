@@ -56,6 +56,23 @@ Open <http://localhost:3000>, then use the **Sound off** control to allow
 browser audio. When a league is configured, use the **Demo / Live** toggle in
 the top-right corner to switch data sources.
 
+## REST API
+
+The board exposes an unauthenticated, read-only JSON API:
+
+| Endpoint | Description |
+| --- | --- |
+| `GET /api` | API endpoint list |
+| `GET /api/draft` | Complete draft snapshot, including league details, teams, completed picks, upcoming slots, and clock |
+| `GET /api/rounds` | Completed picks grouped by draft round |
+| `GET /api/rounds/{round}` | Completed picks for one draft round |
+
+Each completed pick includes its overall and round pick numbers, the fantasy
+team that made the pick, and the player's name, position, and NFL team. Empty
+rounds have an empty `picks` array. Add `?mode=demo` or `?mode=live` to a data
+endpoint when both sources are configured; otherwise the server's default mode
+is used. Responses are not cached, so API consumers receive the latest snapshot.
+
 ## ESPN setup
 
 ### Find your league ID

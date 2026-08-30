@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test",
-    "check": "node --check src/server.js && node --check src/config.js && node --check src/draft.js && node --check src/data/espn-api.js && node --check src/services/draft-service.js && node --check src/services/demo-draft-service.js && node --check src/utils/snapshot-channel.js && node --check public/app.js"
+    "check": "node --check src/server.js && node --check src/api.js && node --check src/config.js && node --check src/draft.js && node --check src/data/espn-api.js && node --check src/services/draft-service.js && node --check src/services/demo-draft-service.js && node --check src/utils/snapshot-channel.js && node --check public/app.js"
   },
   "repository": {
     "type": "git",
