@@ -258,17 +258,24 @@ function renderBoard(data) {
   }
   const grid = document.createElement('div');
   grid.className = 'draft-grid';
-  grid.style.setProperty('--team-count', teams.length);
+  grid.style.setProperty('--round-count', rounds);
 
   const corner = document.createElement('div');
   corner.className = 'grid-corner';
-  corner.textContent = 'RD';
+  corner.textContent = 'TEAM';
   grid.append(corner);
 
-  for (const team of teams) {
+  for (let round = 1; round <= rounds; round += 1) {
     const heading = document.createElement('div');
-    heading.className = 'team-heading';
-    heading.classList.toggle('active', team.id === currentTeamId && data.status === 'in_progress');
+    heading.className = 'round-heading';
+    heading.textContent = `R${round}`;
+    grid.append(heading);
+  }
+
+  for (const team of teams) {
+    const label = document.createElement('div');
+    label.className = 'team-heading';
+    label.classList.toggle('active', team.id === currentTeamId && data.status === 'in_progress');
     const mark = document.createElement('span');
     renderTeamMark(mark, team);
     const name = document.createElement('strong');
@@ -284,17 +291,10 @@ function renderBoard(data) {
       .filter((position) => teamCounts.has(position))
       .map((position) => `${position} ${teamCounts.get(position)}`)
       .join(' · ') || 'No picks';
-    heading.append(mark, name, counts);
-    grid.append(heading);
-  }
+    label.append(mark, name, counts);
+    grid.append(label);
 
-  for (let round = 1; round <= rounds; round += 1) {
-    const roundLabel = document.createElement('div');
-    roundLabel.className = 'round-label';
-    roundLabel.textContent = `R${round}`;
-    grid.append(roundLabel);
-
-    for (const team of teams) {
+    for (let round = 1; round <= rounds; round += 1) {
       const slot = slotsByRoundAndTeam.get(`${round}:${team.id}`);
       const cell = document.createElement('article');
       cell.className = 'draft-cell';
