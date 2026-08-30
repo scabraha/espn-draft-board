@@ -52,9 +52,9 @@ turn sound. With no `ESPN_LEAGUE_ID` configured, the app starts in demo mode:
 docker compose up --build
 ```
 
-Open <http://localhost:3000>, then click or press a key once to allow browser
-audio. When a league is configured, use the **Demo / Live** toggle in the
-top-right corner to switch data sources.
+Open <http://localhost:3000>, then use the **Sound off** control to allow
+browser audio. When a league is configured, use the **Demo / Live** toggle in
+the top-right corner to switch data sources.
 
 ## ESPN setup
 
@@ -110,8 +110,8 @@ selection, the board shows `DELAYED` instead of implying that ESPN's clock is
 still running. When ESPN reports that an active draft has paused, the estimate
 freezes until the draft resumes.
 
-**Browsers block sound until the page is used.** Click or press a key on the
-board once after opening it. After that, the board will ding whenever a
+**Browsers block sound until the page is used.** Select **Sound off** after
+opening the board to enable audio. The board will then ding whenever a
 different team goes on the clock. A team with consecutive picks at the turn of
 a snake draft only dings once.
 
