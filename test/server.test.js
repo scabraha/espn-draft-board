@@ -20,7 +20,7 @@ test('serves the app and health endpoint', async () => {
   ]);
   assert.equal(page.status, 200);
   assert.match(await page.text(), /Live Draft Board/);
-  assert.match(page.headers.get('content-security-policy'), /img-src 'self' https:/);
+  assert.match(page.headers.get('content-security-policy'), /img-src 'self' http: https:/);
   assert.deepEqual(await health.json(), { status: 'ok' });
 });
 
