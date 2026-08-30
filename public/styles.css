@@ -17,6 +17,10 @@ header { display: flex; align-items: center; justify-content: space-between; pad
 h1, h2, h3, p { margin: 0; }
 h1 { font-size: clamp(1.3rem, 3vw, 2rem); letter-spacing: -.04em; }
 .eyebrow, .label { color: var(--accent); font-size: .7rem; font-weight: 800; letter-spacing: .16em; margin-bottom: 7px; }
+.mode-toggle { display: flex; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.mode-toggle button { min-width: 58px; padding: 6px 10px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; font-family: inherit; font-size: .68rem; font-weight: 800; line-height: 1; letter-spacing: .06em; text-transform: uppercase; }
+.mode-toggle button.active { background: var(--accent); color: #0b1200; }
+.mode-toggle button:disabled { cursor: not-allowed; opacity: .35; }
 .connection { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: .82rem; }
 .header-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
 .control { padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); color: var(--text); font: inherit; font-size: .72rem; cursor: pointer; }
@@ -99,7 +103,7 @@ body.large-text .draft-grid { grid-template-columns: 48px repeat(var(--team-coun
 
 @media (max-width: 760px) {
   header { align-items: flex-start; gap: 12px; }
-  .header-actions { max-width: 58%; }
+  .header-actions { max-width: 70%; }
   .control { padding: 6px 8px; }
   .spotlight { grid-template-columns: 1fr; }
   .draft-summary { grid-template-columns: 1fr; }

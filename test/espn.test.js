@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DraftService, normalizeLeague } from '../src/espn.js';
+import { normalizeLeague } from '../src/draft.js';
+import { DraftService } from '../src/services/draft-service.js';
 
 const league = {
   id: 42,
@@ -57,10 +58,12 @@ test('draft service caches upstream requests and resets the clock on a pick', as
     { pollIntervalMs: 2_000 },
     {
       now: () => now,
-      fetchLeague: async () => { calls += 1; return currentLeague; },
-      fetchPlayers: async (_config, ids) => {
-        playerRequests.push(ids);
-        return new Map(ids.map((id) => [id, { id, name: `Player ${id}` }]));
+      data: {
+        fetchLeague: async () => { calls += 1; return currentLeague; },
+        fetchPlayers: async (ids) => {
+          playerRequests.push(ids);
+          return new Map(ids.map((id) => [id, { id, name: `Player ${id}` }]));
+        }
       }
     }
   );
@@ -87,8 +90,10 @@ test('resets the clock when a waiting draft starts', async () => {
     { pollIntervalMs: 1_000 },
     {
       now: () => now,
-      fetchLeague: async () => currentLeague,
-      fetchPlayers: async () => new Map()
+      data: {
+        fetchLeague: async () => currentLeague,
+        fetchPlayers: async () => new Map()
+      }
     }
   );
 
@@ -106,8 +111,10 @@ test('freezes and resumes the estimated clock when a draft pauses', async () => 
     { pollIntervalMs: 1_000 },
     {
       now: () => now,
-      fetchLeague: async () => currentLeague,
-      fetchPlayers: async () => new Map()
+      data: {
+        fetchLeague: async () => currentLeague,
+        fetchPlayers: async () => new Map()
+      }
     }
   );
 
@@ -157,11 +164,13 @@ test('backend polling publishes refreshed snapshots', async () => {
     { pollIntervalMs: 10_000 },
     {
       now: () => 1_000,
-      fetchLeague: async () => {
-        refreshes += 1;
-        return league;
-      },
-      fetchPlayers: async () => new Map()
+      data: {
+        fetchLeague: async () => {
+          refreshes += 1;
+          return league;
+        },
+        fetchPlayers: async () => new Map()
+      }
     }
   );
   const update = new Promise((resolve) => {
@@ -179,14 +188,25 @@ test('backend polling publishes refreshed snapshots', async () => {
   assert.equal(published.league.name, 'Test League');
 });
 
-test('backend polling publishes ESPN refresh errors', async () => {
+test('backend polling publishes refresh errors', async () => {
+  let published;
   const service = new DraftService(
     { pollIntervalMs: 10_000 },
-    { fetchLeague: async () => { throw new Error('ESPN unavailable'); } }
+    {
+      now: () => 1_000,
+      logger: { error() {} },
+      data: {
+        fetchLeague: async () => { throw new Error('ESPN is unavailable'); },
+        fetchPlayers: async () => new Map()
+      }
+    }
   );
-  const failure = new Promise((resolve) => service.subscribeError(resolve));
+  await service.poll();
+  service.subscribeErrors((error) => { published = error; });
+  await Promise.resolve();
 
-  service.start();
-  assert.equal(await failure, 'ESPN unavailable');
-  service.stop();
+  assert.deepEqual(published, {
+    message: 'ESPN is unavailable',
+    updatedAt: '1970-01-01T00:00:01.000Z'
+  });
 });

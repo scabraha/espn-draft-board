@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DemoDraftService } from '../src/demo.js';
+import { DemoDraftService } from '../src/services/demo-draft-service.js';
 
 test('advances and loops through a demo snake draft', () => {
   let now = 0;
