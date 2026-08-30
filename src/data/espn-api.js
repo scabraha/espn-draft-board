@@ -88,7 +88,7 @@ export class EspnApi {
         players: { filterIds: { value: playerIds } }
       })
     });
-    const players = records.map(normalizePlayer);
+    const players = (Array.isArray(records) ? records : []).map(normalizePlayer);
     return new Map(players.map((player) => [player.id, player]));
   }
 }

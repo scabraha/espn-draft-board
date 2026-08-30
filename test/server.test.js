@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
+import { connect } from 'node:net';
 import { createApp } from '../src/server.js';
 
 let server;
@@ -98,4 +99,18 @@ test('selects demo and live data sources independently', async () => {
   assert.equal((await defaultDraft.json()).league.name, 'Live');
   assert.equal((await demoDraft.json()).league.name, 'Demo');
   await new Promise((resolve) => modeServer.close(resolve));
+});
+
+test('answers a malformed request target without crashing', async () => {
+  const raw = await new Promise((resolve, reject) => {
+    const socket = connect(server.address().port, '127.0.0.1', () => {
+      socket.write('GET http://[ HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n');
+    });
+    socket.setTimeout(2_000, () => reject(new Error('timed out')));
+    socket.on('data', (chunk) => { socket.destroy(); resolve(chunk.toString()); });
+    socket.on('error', reject);
+  });
+
+  assert.match(raw, /^HTTP\/1\.1 400 /);
+  assert.equal((await fetch(`${baseUrl}/healthz`)).status, 200);
 });

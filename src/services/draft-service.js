@@ -71,9 +71,11 @@ export class DraftService {
     const complete = Boolean(league.draftDetail?.drafted)
       || (rawPicks.length > 0 && completed.length === rawPicks.length);
     const pickChanged = this.completedPicks === null || completed.length !== this.completedPicks;
+    const firstRefresh = this.completedPicks === null;
     if (pickChanged) {
       this.clock.startedAt = now;
       if (this.clock.pausedAt !== null) this.clock.pausedAt = now;
+      if (firstRefresh && !inProgress && !complete && completed.length > 0) this.clock.pausedAt = now;
     } else if (inProgress && !this.inProgress) {
       if (this.clock.pausedAt !== null) {
         this.clock.startedAt += now - this.clock.pausedAt;

@@ -65,3 +65,11 @@ test('adds an authentication hint to authorization failures', async () => {
     /ESPN returned HTTP 403\. Check ESPN_SWID and ESPN_S2/
   );
 });
+
+test('ignores an unexpected player response shape', async () => {
+  const api = new EspnApi(config, {
+    fetch: async () => ({ ok: true, json: async () => ({ messages: ['no players'] }) })
+  });
+
+  assert.deepEqual(await api.fetchPlayers([100]), new Map());
+});
