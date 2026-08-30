@@ -15,7 +15,7 @@ const league = {
     }
   },
   teams: [
-    { id: 1, location: 'Alpha', nickname: 'Team', abbrev: 'ALP', logo: 'https://example.com/alpha.png' },
+    { id: 1, location: 'Alpha', nickname: 'Team', abbrev: 'ALP', logo: 'http://example.com/alpha.png' },
     { id: 2, location: 'Beta', nickname: 'Team', abbrev: 'BET' }
   ],
   draftDetail: {
