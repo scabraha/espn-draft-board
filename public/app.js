@@ -84,7 +84,7 @@ function renderTeamMark(mark, team) {
 
   try {
     const logo = new URL(team.logo);
-    if (logo.protocol !== 'https:') return;
+    if (!['http:', 'https:'].includes(logo.protocol)) return;
     const image = document.createElement('img');
     image.src = logo.href;
     image.alt = '';
